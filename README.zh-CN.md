@@ -4,7 +4,7 @@
 
 > 本项目由 AI 深度参与开发。
 
-这是一个基于 [Carpet](https://github.com/gnembon/fabric-carpet) (fabric-carpet) 的扩展模组，提供一些实用的规则与假人自动化能力（备货取货、村民交易刷新等）。
+这是一个基于 [Carpet](https://github.com/gnembon/fabric-carpet) (fabric-carpet) 的扩展模组，提供实用的规则与假人自动化能力，例如备货取货和村民交易刷新。
 
 适用于 Minecraft 1.16.5 ~ 26.3。
 

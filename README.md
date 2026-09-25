@@ -4,7 +4,7 @@
 
 > This project is developed with deep AI assistance.
 
-An extension mod for [Carpet](https://github.com/gnembon/fabric-carpet) (fabric-carpet), providing practical rules and fake-player automation (material restocking, librarian trade rerolling, ...).
+An extension mod for [Carpet](https://github.com/gnembon/fabric-carpet) (fabric-carpet), providing practical rules and fake-player automation such as material restocking and librarian trade rerolling.
 
 Works with Minecraft 1.16.5 ~ 26.3.
 
