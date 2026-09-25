@@ -756,8 +756,6 @@ public final class RestockScheduler {
     }
 
     /** 库存源里第一个可用容器（跨维度），用于给备货假人选址 */
-
-    /** 库存源里第一个可用容器（跨维度），用于给备货假人选址 */
     private static StockSpot firstStockSpot(MinecraftServer server) {
         for (Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>,
                 java.util.Set<BlockPos>> entry : StockSource.all().entrySet()) {

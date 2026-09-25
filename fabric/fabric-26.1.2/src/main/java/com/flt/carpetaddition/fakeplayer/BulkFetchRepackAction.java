@@ -19,7 +19,7 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemContainerContents;
-import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.ShulkerBoxBlockEntity;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -40,11 +40,11 @@ import java.util.function.Consumer;
  *       复用 {@link MultiContainerWithdrawAction#collectTargets} 收集目标槽，再按
  *       传送 → 开箱 → 逐槽 {@code quickMoveStack} 的多刻状态机搬货。</li>
  *   <li><b>装箱（PACK）</b>：仓库找空潜影盒 → 让假人从仓库拿一个盒 → 打开盒 → 把假人背包的
- *       散装物品尽量填满盒，产出一个成品盒（每盒最多 27 格 × 64 = 1728 个）。</li>
+ *       散装物品尽量填满盒，产出一个成品盒（每盒最多 27 格 × 该物品堆叠上限）。</li>
  *   <li><b>送回（DELIVER）</b>：假人背着成品盒（若有）与散装余量送到玩家面前。</li>
  * </ol>
  *
- * <p><b>为什么装箱</b>：大量散装物品（如 1728 石砖）占满假人 36 格背包；打包成一盒只占一格，
+ * <p><b>为什么装箱</b>：大量散装物品（如一整盒石砖）占满假人 36 格背包；打包成一盒只占一格，
  * 一次就能把大量材料送到玩家面前（玩家右键假人背包取走成品盒，比逐格捡散装高效得多）。
  *
  * <p><b>空盒来源</b>：从已登记仓库里找「空潜影盒」（{@code StackCounter.count} 判定为"盒本身"
@@ -374,53 +374,12 @@ public class BulkFetchRepackAction extends AbstractFakePlayerAction {
                 if (c == null) {
                     continue;
                 }
-                // 诊断：统计本容器里「空盒/潜影盒但非空/其它」的槽
-                boolean anyBoxInThisContainer = false;
-                for (int i = 0; i < c.getContainerSize(); i++) {
-                    ItemStack stack = c.getItem(i);
-                    if (stack.isEmpty() || !stack.is(net.minecraft.tags.ItemTags.SHULKER_BOXES)) {
-                        continue;
-                    }
-                    anyBoxInThisContainer = true;
-                    if (!isEmptyShulker(stack)) {
-                        FLTAdditionMod.LOGGER.info("[FLT] 备货 PACK 诊断：{} 处槽 {} 是潜影盒但未认成空盒 -> {}", canonical, i, shulkerDiag(stack));
-                    }
-                }
-                if (anyBoxInThisContainer) {
-                    FLTAdditionMod.LOGGER.info("[FLT] 备货 PACK 诊断：容器 {} 内发现了潜影盒（含未识别为空的）", canonical);
-                }
                 for (int i = 0; i < c.getContainerSize(); i++) {
                     ItemStack stack = c.getItem(i);
                     if (isEmptyShulker(stack)) {
                         emptyBoxSrcPos = canonical.immutable();
                         emptyBoxSrcSlot = i;
                         return true;
-                    }
-                }
-            }
-        }
-        // 无空盒时，把「仓库里到底有些什么盒」也汇总一下，便于一次定位
-        FLTAdditionMod.LOGGER.info("[FLT] 备货 PACK 未找到任何空盒，仓库内潜影盒盘点如下");
-        for (Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>,
-                Set<BlockPos>> entry : StockSource.all().entrySet()) {
-            ServerLevel dl = server().getLevel(entry.getKey());
-            if (dl == null) {
-                continue;
-            }
-            Set<BlockPos> dseen = new HashSet<>();
-            for (BlockPos pos : entry.getValue()) {
-                BlockPos canonical = ContainerGroup.canonical(dl, pos);
-                if (!dseen.add(canonical)) {
-                    continue;
-                }
-                Container dc = ContainerGroup.fullContainerFor(dl, canonical);
-                if (dc == null) {
-                    continue;
-                }
-                for (int i = 0; i < dc.getContainerSize(); i++) {
-                    ItemStack stack = dc.getItem(i);
-                    if (!stack.isEmpty() && stack.is(net.minecraft.tags.ItemTags.SHULKER_BOXES)) {
-                        FLTAdditionMod.LOGGER.info("[FLT] 备货 PACK 盘点：{} 槽 {} = {}", canonical, i, shulkerDiag(stack));
                     }
                 }
             }
@@ -442,77 +401,85 @@ public class BulkFetchRepackAction extends AbstractFakePlayerAction {
     }
 
     /**
-     * 诊断用：为什么某些潜影盒没被认成"空盒"。
-     * 逐盒打印：物品 id、数量、CONTAINER 组件是否存在及其非空内容数量。
-     * （排查 ORG「潜影盒可堆叠」开启后空盒识别失败的根因。）
-     */
-    @SuppressWarnings("unused")
-    private static String shulkerDiag(ItemStack stack) {
-        if (stack == null || stack.isEmpty() || !stack.is(net.minecraft.tags.ItemTags.SHULKER_BOXES)) {
-            return "非潜影盒";
-        }
-        Identifier id = BuiltInRegistries.ITEM.getKey(stack.getItem());
-        String self;
-        try {
-            self = id.toString();
-        } catch (Throwable t) {
-            self = "?";
-        }
-        var contents = stack.get(net.minecraft.core.component.DataComponents.CONTAINER);
-        String contentsDesc = "null";
-        int innerCount = 0;
-        if (contents != null) {
-            innerCount = contents.nonEmptyItemCopyStream().mapToInt(net.minecraft.world.item.ItemStack::getCount).sum();
-            contentsDesc = "非空内容=" + innerCount;
-        }
-        return self + " ×" + stack.getCount() + " CONTAINER=" + contentsDesc;
-    }
-
-    /**
      * 去空盒所在箱取空盒（传送 → 开箱 → quickMoveStack 取那格）。
+     *
+     * <p>与 {@code MultiContainerWithdrawAction.tick} 同构：三个阶段各自独占 tick，
+     * 因为传送后位置要下一 tick 才生效，同 tick 开箱会失败。
+     *
      * @return true = 还在进行；false = 已取到空盒（可能失败，失败只需继续走后续）
      */
     private boolean takeEmptyBoxOneTick() {
-        ServerLevel level = level();
-        ServerPlayer bot = getFakePlayer();
-
-        // 换箱判断只靠坐标：不能写成 `boxSrcMenu == null || ...`——首次进入 menu 本就是 null，
-        // 那样条件恒成立 → 每 tick 都重走"传送"、永远进不到下面 `if (boxSrcMenu == null)` 的开箱分支
-        // （实测表现"找到空盒了却永远拿不到盒不装箱"，与 MultiContainerWithdrawAction 那个卡死同根）。
+        // 阶段调度（换箱判断只看坐标，理由见 teleportToEmptyBox 注释）
         if (!emptyBoxSrcPos.equals(boxSrcOpenPos)) {
-            if (boxSrcMenu != null) {
-                try {
-                    bot.closeContainer();
-                } catch (Throwable ignored) {
-                }
-                boxSrcMenu = null;
-            }
-            boxSrcOpenPos = emptyBoxSrcPos.immutable();
-            bot.teleportTo(level,
-                    emptyBoxSrcPos.getX() + 0.5D,
-                    emptyBoxSrcPos.getY() + 1.0D,   // 站箱顶上方一格，避免卡箱（见 ContainerWithdrawAction 注释）
-                    emptyBoxSrcPos.getZ() + 0.5D,
-                    Set.<Relative>of(), bot.getYRot(), bot.getXRot(), false);
-            return true;
+            return teleportToEmptyBox();
         }
         if (boxSrcMenu == null) {
-            // ⚠️ 用方块状态的标准菜单入口（双箱合并成54格菜单），与 locateEmptyBox 用
-            //    fullContainerFor 扫到的槽号一致；否则双箱后半(槽27~52)的空盒越界取不到。
-            net.minecraft.world.MenuProvider provider =
-                    ContainerGroup.menuProviderFor(level, emptyBoxSrcPos);
-            if (provider == null) {
-                return false;   // 取不到，放弃这盒（回到 0 重来可能找到别处）
-            }
-            OptionalInt id = bot.openMenu(provider);
-            if (id.isEmpty() || bot.containerMenu == null) {
-                return false;
-            }
-            boxSrcMenu = bot.containerMenu;
-            Container full = ContainerGroup.fullContainerFor(level, emptyBoxSrcPos);
-            boxSrcSize = full != null ? full.getContainerSize() : 0;
-            return true;
+            return openEmptyBoxSource();
         }
-        // 取空盒那一格
+        return grabEmptyBox();
+    }
+
+    /**
+     * 阶段①：传送到空盒所在箱（本 tick 只传送）。
+     *
+     * <p>⚠️ 换箱判断只靠坐标：不能写成 {@code boxSrcMenu == null || ...}——首次进入 menu 本就是 null，
+     * 那样条件恒成立 → 每 tick 都重走"传送"、永远进不到 {@link #openEmptyBoxSource} 的开箱分支
+     * （实测表现"找到空盒了却永远拿不到盒不装箱"，与 {@code MultiContainerWithdrawAction} 那个卡死同根）。
+     *
+     * @return 恒 true（下一 tick 开箱）
+     */
+    private boolean teleportToEmptyBox() {
+        ServerPlayer bot = getFakePlayer();
+        if (boxSrcMenu != null) {
+            try {
+                bot.closeContainer();
+            } catch (Throwable ignored) {
+            }
+            boxSrcMenu = null;
+        }
+        boxSrcOpenPos = emptyBoxSrcPos.immutable();
+        bot.teleportTo(level(),
+                emptyBoxSrcPos.getX() + 0.5D,
+                emptyBoxSrcPos.getY() + 1.0D,   // 站箱顶上方一格，避免卡箱（见 ContainerWithdrawAction 注释）
+                emptyBoxSrcPos.getZ() + 0.5D,
+                Set.<Relative>of(), bot.getYRot(), bot.getXRot(), false);
+        return true;
+    }
+
+    /**
+     * 阶段②：打开空盒所在箱。
+     *
+     * @return true = 已开好（下一 tick 取盒）；false = 开箱失败，放弃这盒（回到 0 重来可能找到别处）
+     */
+    private boolean openEmptyBoxSource() {
+        ServerPlayer bot = getFakePlayer();
+        // ⚠️ 用方块状态的标准菜单入口（双箱合并成54格菜单），与 locateEmptyBox 用
+        //    fullContainerFor 扫到的槽号一致；否则双箱后半(槽27~52)的空盒越界取不到。
+        net.minecraft.world.MenuProvider provider =
+                ContainerGroup.menuProviderFor(level(), emptyBoxSrcPos);
+        if (provider == null) {
+            return false;
+        }
+        OptionalInt id = bot.openMenu(provider);
+        if (id.isEmpty() || bot.containerMenu == null) {
+            return false;
+        }
+        boxSrcMenu = bot.containerMenu;
+        Container full = ContainerGroup.fullContainerFor(level(), emptyBoxSrcPos);
+        boxSrcSize = full != null ? full.getContainerSize() : 0;
+        return true;
+    }
+
+    /**
+     * 阶段③：从已开好的箱里取走那一格空盒，然后关箱。
+     *
+     * <p>堆叠空盒（ORG「潜影盒可堆叠」让空盒 count&gt;1）时一次只取【1 个】，剩余留在仓库槽，
+     * 避免"整组被搬空"；配合 {@code fillFirstEmptyBoxFromInventory} 拆单盒填装。
+     *
+     * @return 恒 false（取盒流程结束）
+     */
+    private boolean grabEmptyBox() {
+        ServerPlayer bot = getFakePlayer();
         int idx = emptyBoxSrcSlot;
         if (idx < 0 || idx >= boxSrcSize || idx >= boxSrcMenu.slots.size()) {
             return false;
@@ -521,12 +488,7 @@ public class BulkFetchRepackAction extends AbstractFakePlayerAction {
         if (slot == null || !slot.hasItem() || !isEmptyShulker(slot.getItem())) {
             return false;   // 已被别人拿走等等
         }
-        // 诊断：取盒前该槽物品（用于追踪"空盒没变少"=问题出在 quickMoveStack 复制）
-        String beforeDesc = shulkerDiagSlot(slot.getItem());
-        int beforeCount = slot.getItem().getCount();
         if (slot.getItem().getCount() > 1) {
-            // ⚠️ 堆叠空盒（ORG「潜影盒可堆叠」让空盒 count>1）：一次只取【1 个】，剩余 count-1 留在仓库槽。
-            //    这样仓库不会"整组被搬空"，且每次装箱只消耗 1 个盒；配合 fillFirstEmptyBoxFromInventory 拆单盒填装。
             ItemStack single = slot.getItem().split(1);
             boolean ok = bot.getInventory().add(single);   // 塞进假人背包
             slot.setChanged();   // 让底层的容器记录变更，剩余盒留在仓库
@@ -543,9 +505,6 @@ public class BulkFetchRepackAction extends AbstractFakePlayerAction {
             // 本来就单个空盒：quickMoveStack 直接搬进背包
             boxSrcMenu.quickMoveStack(bot, idx);
         }
-        String afterDesc = shulkerDiagSlot(slot.getItem());
-        FLTAdditionMod.LOGGER.info("[FLT] 备货 PACK 取盒诊断：{} 槽{} 前=[{}] 后=[{}]",
-                emptyBoxSrcPos, idx, beforeDesc, afterDesc);
         try {
             bot.closeContainer();
         } catch (Throwable ignored) {
@@ -554,22 +513,22 @@ public class BulkFetchRepackAction extends AbstractFakePlayerAction {
         return false;   // 完成取盒
     }
 
-    /** 诊断用：空槽返回 "(空)"，否则调 shulkerDiag */
-    @SuppressWarnings("unused")
-    private static String shulkerDiagSlot(ItemStack stack) {
-        if (stack == null || stack.isEmpty()) {
-            return "(空)";
-        }
-        return shulkerDiag(stack);
-    }
-
     /**
-     * 把一个空盒<b>尽量装满同一类物品</b>（每格 64，最多 27 格 = 最多 1728 个同一物品）。
+     * 把一个空盒<b>尽量装满同一类物品</b>（每格 = 该物品的堆叠上限，最多 {@code 27} 格）。
      *
-     * <p>装箱策略：优先凑满"一个整数堆"（如 64 或 64×27）的同类物品装一盒，
-     * 这样成品盒内容单一、好用。装不满一整盒也能装（只要某类物品总数 ≥1）。
+     * <p>装箱策略：优先凑满"一个整数堆"的同类物品装一盒，这样成品盒内容单一、好用。
+     * 装不满一整盒也能装（只要某类物品总数 ≥1）。
      * 从假人背包逐格抠这些物品写入盒内（{@code ItemContainerContents.fromItems}），
      * 被抠光的槽置空；装完的盒（已带内容）留在假人背包作为成品。
+     *
+     * <p>⚠️ <b>每格上限必须取该物品自己的堆叠上限，不能写死 64</b>（[VERSION] 2026-09-24 修复）：
+     * 石头是 64，但雪球是 16、工具/盔甲是 1。若按 64 造出 {@code count > maxStackSize} 的栈，
+     * {@code fromItems → ItemStackTemplate.create() → validate()} 会走
+     * {@code ItemStack.validateStrict}（判 {@code count > getMaxStackSize()}）→ 该格被
+     * <b>替换成 {@code ItemStack.EMPTY}</b>，而且 {@code create()} 的失败分支只有一条
+     * {@code LOGGER.warn}、调用方拿不到任何信号 → <b>物品静默凭空消失</b>。
+     * （字节码实证：{@code ItemStackTemplate.create()V} 调 {@code validate()}；
+     * {@code validate()} 调 {@code ItemStack.validateStrict}，失败即 {@code ItemStack.EMPTY}）
      *
      * @param emptyBox 假人背包里的一个空潜影盒（会被填充内容）
      * @return 装进盒的物品个数（0 = 没装成，理论上不该发生）
@@ -584,9 +543,53 @@ public class BulkFetchRepackAction extends AbstractFakePlayerAction {
             return 0;
         }
         var inv = getFakePlayer().getInventory();
-        // 找出背包里所有散装物品（按 物品ID → 各槽累计数量），选一种最多的来装一盒。
-        // 装箱优先"同类满 27 格"：找到总数能凑满 64×27 的物品优先；否则选总数最大的物品。
-        // 收集形式：Map<Identifier, Integer> 只用于决策，真正取值时逐槽抠。
+        Identifier pickId = pickLooseItemWithLargestTotal(inv);
+        if (pickId == null) {
+            return 0;   // 没有可装箱的散装
+        }
+        Item pickItem = BuiltInRegistries.ITEM.getValue(pickId);
+        if (pickItem == null) {
+            return 0;
+        }
+
+        // 从背包逐格抠 pickItem 的物品，尽量凑满 27 格。
+        int maxBoxSize = ShulkerBoxBlockEntity.CONTAINER_SIZE;
+        List<ItemStack> filled = new ArrayList<>();   // 盒内 27 格
+        for (int i = 0; i < inv.getContainerSize() && filled.size() < maxBoxSize; i++) {
+            ItemStack st = inv.getItem(i);
+            if (st.isEmpty() || !st.is(pickItem)) {
+                continue;
+            }
+            // ⚠️ 每格容量取<b>实际栈</b>的堆叠上限：getMaxStackSize() 是 ItemInstance 的 default 方法
+            //    （读 MAX_STACK_SIZE 数据组件），而 Item 自身只有 getDefaultMaxStackSize()，
+            //    拿不到"数据包/模组改过堆叠上限"的语义 → 必须从 ItemStack 问。
+            //    一个盒槽只放"一种物品的一个 ≤堆叠上限 小堆"。
+            fillOneBoxSlot(filled, st, st.getMaxStackSize(), maxBoxSize);
+            if (st.isEmpty()) {
+                inv.setItem(i, ItemStack.EMPTY);
+            }
+        }
+
+        if (filled.isEmpty()) {
+            return 0;
+        }
+        int got = 0;
+        for (ItemStack s : filled) {
+            got += s.getCount();
+        }
+        // 写入盒内容
+        emptyBox.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(filled));
+        return got;
+    }
+
+    /**
+     * 决策：在假人背包里挑一种「散装物品」来装一盒 —— 取<b>总数最多</b>的那种。
+     *
+     * <p>只统计散装（跳过潜影盒本身：盒要留着当容器/成品，不再被拆开重装）。
+     *
+     * @return 选中物品的 ID；背包里没有散装物品时返回 {@code null}
+     */
+    private Identifier pickLooseItemWithLargestTotal(net.minecraft.world.entity.player.Inventory inv) {
         java.util.Map<Identifier, Integer> looseTotals = new java.util.LinkedHashMap<>();
         for (int i = 0; i < inv.getContainerSize(); i++) {
             ItemStack st = inv.getItem(i);
@@ -596,55 +599,38 @@ public class BulkFetchRepackAction extends AbstractFakePlayerAction {
             Identifier id = BuiltInRegistries.ITEM.getKey(st.getItem());
             looseTotals.merge(id, st.getCount(), Integer::sum);
         }
-
-        // 决策：选"能凑满整盒(1728)"的物品里最好的；否则选总数最大的
         Identifier pickId = null;
         int pickMax = 0;
         for (Map.Entry<Identifier, Integer> en : looseTotals.entrySet()) {
-            int total = en.getValue();
-            if ((pickId == null) || total > pickMax) {
+            if (pickId == null || en.getValue() > pickMax) {
                 pickId = en.getKey();
-                pickMax = total;
+                pickMax = en.getValue();
             }
         }
-        if (pickId == null || pickMax <= 0) {
-            return 0;   // 没有可装箱的散装
-        }
+        return pickMax > 0 ? pickId : null;
+    }
 
-        // 从背包逐格抠 pickId 的物品，尽量凑满 27 格（每格 ≤64）
-        Item pickItem = BuiltInRegistries.ITEM.getValue(pickId);
-        if (pickItem == null) {
-            return 0;
+    /**
+     * 从背包某一格 {@code stack} 里分出若干个 ≤{@code slotLimit} 的小堆，追加到 {@code filled}
+     * （直到该格被抠空、或 {@code filled} 达到 {@code maxBoxSize} 格）。
+     *
+     * <p>同类物品超过一个堆叠上限时会分成多格（例如 100 个石头 = 64 + 36 两格）。
+     * 被抠的 {@code stack} 会被 {@code shrink} 成剩余数量（抠光即为空堆）。
+     *
+     * @param filled    盒内格列表（原地追加）
+     * @param stack     被抠的背包格（原地扣减）
+     * @param slotLimit 每格容量上限（该物品的堆叠上限，<b>不能写死 64</b>）
+     * @param maxBoxSize 盒的格数上限（27）
+     */
+    private static void fillOneBoxSlot(List<ItemStack> filled, ItemStack stack, int slotLimit, int maxBoxSize) {
+        int limit = Math.max(1, slotLimit);
+        int take = stack.getCount();
+        while (take > 0 && filled.size() < maxBoxSize) {
+            int chunk = Math.min(take, limit);
+            filled.add(stack.copyWithCount(chunk));
+            stack.shrink(chunk);
+            take -= chunk;
         }
-        int want = Math.min(pickMax, 27 * 64);
-        List<ItemStack> filled = new ArrayList<>();   // 盒内 27 格
-        int got = 0;
-        for (int i = 0; i < inv.getContainerSize() && got < want; i++) {
-            ItemStack st = inv.getItem(i);
-            if (st.isEmpty() || !st.is(pickItem)) {
-                continue;
-            }
-            int take = Math.min(st.getCount(), want - got);
-            // 一个盒槽：从该格分出一个 ≤64 的小堆（同类物品分多次也行，但一格只放一种）
-            while (take > 0 && filled.size() < 27) {
-                int chunk = Math.min(take, 64);
-                filled.add(st.copyWithCount(chunk));
-                st.shrink(chunk);
-                take -= chunk;
-                got += chunk;
-            }
-            if (st.isEmpty()) {
-                inv.setItem(i, ItemStack.EMPTY);
-            }
-            // filled 已满或 got 已够 → 结束
-        }
-
-        if (filled.isEmpty()) {
-            return 0;
-        }
-        // 写入盒内容
-        emptyBox.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(filled));
-        return got;
     }
 
     // =========================================================

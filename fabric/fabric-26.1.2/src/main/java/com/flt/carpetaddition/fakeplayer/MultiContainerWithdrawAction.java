@@ -180,7 +180,7 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
                                          net.minecraft.resources.Identifier itemId,
                                          Item targetItem, boolean boxMode) {
         if (boxMode) {
-            if (!isSingleShulkerOfTarget(stack, targetItem)) {
+            if (!ShulkerBoxUtil.isSingleShulkerOfTarget(stack, targetItem)) {
                 return null;
             }
             // 盒数 = 槽内潜影盒堆叠数（通常是 1，某些数据包/模组可能可堆叠）
@@ -205,16 +205,6 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
         return null;
     }
 
-    /** 槽是否「单一内容潜影盒且盒内全部是目标物品」 */
-    private static boolean isSingleShulkerOfTarget(ItemStack slotStack, Item targetItem) {
-        if (slotStack.isEmpty() || !slotStack.is(net.minecraft.tags.ItemTags.SHULKER_BOXES)) {
-            return false;
-        }
-        StackCounter.Count count = StackCounter.count(slotStack);
-        return count != null
-                && count.itemId().equals(BuiltInRegistries.ITEM.getKey(targetItem));
-    }
-
     private static final class Candidate {
         final BlockPos pos;
         final int slotIndex;
@@ -231,9 +221,6 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
 
     @Override
     public boolean tick() {
-        ServerPlayer bot = getFakePlayer();
-        ServerLevel level = level();
-
         if (currentIndex >= targets.size()) {
             message = message != null ? message
                     : (withdrawn > 0 ? "跨箱取完，共 " + withdrawn + " 个（" + itemIdText + "）"
@@ -243,57 +230,90 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
 
         TargetSlot target = targets.get(currentIndex);
 
-        // —— 需要换箱（与当前定位/打开的箱子不同）：本 tick 只传送定位。
-        // 注意不能写成 `menu == null || ...`：首次进入时 menu 本来就是 null，
-        // 那样条件恒成立 → 每 tick 都重走"传送"、永远进不到下面的开箱分支（实测卡死 600 刻）。
-        // 换箱判断只看目标箱坐标是否与当前定位箱(openPos)不同；menu==null 时统一走开箱逻辑。
-        // 为什么传送和开箱必须分两个 tick：假人 openMenu 要通过容器菜单的 stillValid
-        // 8 格距离校验，而 teleportTo 后假人位置要下一 tick 才生效。若同 tick 传送完立刻
-        // openMenu，校验仍按旧位置算 → 大量失败（表现为"只拿到第一个箱子"）。
+        // 阶段调度（三步各自独占 tick，为什么必须分开见对应方法注释）：
+        //   ① 目标箱 ≠ 当前定位箱 → 只传送  ② 已定位但没开箱 → 开箱  ③ 开好箱 → 取当前槽
         if (!target.pos.equals(openPos)) {
-            closeMenu();
-            openPos = target.pos;
-            FLTAdditionMod.LOGGER.info("[FLT][取货] {} 换箱传送至 {}", itemIdText, target.pos);
-
-            bot.teleportTo(level,
-                    target.pos().getX() + 0.5D,
-                    target.pos().getY() + 1.0D,   // 站箱顶上方一格，避免脚底嵌进下一层方块而卡箱（见 ContainerWithdrawAction 注释）
-                    target.pos().getZ() + 0.5D,
-                    Set.<Relative>of(), bot.getYRot(), bot.getXRot(), false);
-            return true;   // 下一 tick 已到位，再开箱
+            return teleportToNextBox(target);
         }
-
-        // —— 已定位到目标箱但还没开箱：本 tick 开箱。
         if (menu == null) {
-            BlockPos boxPos = target.pos();
-            // ⚠️ 用方块状态的标准菜单入口（而非裸 blockEntity）：双箱会被合并成 54 格菜单，
-            //    与 collectTargets 用 fullContainerFor 记录的槽号一致；否则打开 27 格菜单、
-            //    槽 27~52 全越界 → 取 0 个（2026-09-23 双箱 bug 实证）。
-            MenuProvider provider =
-                    com.flt.carpetaddition.storage.ContainerGroup.menuProviderFor(level, boxPos);
-            if (provider == null) {
-                message = "目标方块不是可打开容器（已跳过）：" + boxPos;
-                FLTAdditionMod.LOGGER.info("[FLT][取货] {} 位置 {} 不可开箱，跳过", itemIdText, boxPos);
-                currentIndex++;
-                return true;
-            }
-            // 容器格数用与 collectTargets 完全同源（fullContainerFor），保证槽号对齐。
-            Container full =
-                    com.flt.carpetaddition.storage.ContainerGroup.fullContainerFor(level, boxPos);
-            containerSize = full != null ? full.getContainerSize() : 0;
-            OptionalInt menuId = bot.openMenu(provider);
-            if (menuId.isEmpty() || bot.containerMenu == null) {
-                message = "打开容器失败（已跳过）：" + boxPos;
-                FLTAdditionMod.LOGGER.info("[FLT][取货] {} 打开容器 {} 失败（菜单未创建），跳过", itemIdText, boxPos);
-                currentIndex++;
-                return true;
-            }
-            menu = bot.containerMenu;
-            FLTAdditionMod.LOGGER.info("[FLT][取货] {} 已打开 {} 的容器（{} 槽）", itemIdText, boxPos, containerSize);
-            return true;   // 下一 tick 再取槽
+            return openBox(target);
         }
+        return withdrawCurrentSlot(target);
+    }
 
-        // —— 开好箱：取当前槽
+    /**
+     * 阶段①：换箱传送（本 tick 只传送，下一 tick 才开箱）。
+     *
+     * <p>⚠️ 进入条件不能写成 {@code menu == null || ...}：首次进入时 {@code menu} 本来就是 null，
+     * 那样条件恒成立 → 每 tick 都重走"传送"、永远进不到开箱阶段（实测卡死 600 刻）。
+     * 换箱判断只看目标箱坐标是否与当前定位箱（{@code openPos}）不同；{@code menu == null} 时
+     * 统一交给 {@link #openBox} 处理。
+     *
+     * <p>为什么传送和开箱必须分两个 tick：假人 {@code openMenu} 要通过容器菜单 {@code stillValid}
+     * 的 8 格距离校验，而 {@code teleportTo} 后假人位置要下一 tick 才生效。若同 tick 传送完立刻
+     * openMenu，校验仍按旧位置算 → 大量失败（表现为"只拿到第一个箱子"）。
+     */
+    private boolean teleportToNextBox(TargetSlot target) {
+        ServerPlayer bot = getFakePlayer();
+        ServerLevel level = level();
+
+        closeMenu();
+        openPos = target.pos();
+        FLTAdditionMod.LOGGER.info("[FLT][取货] {} 换箱传送至 {}", itemIdText, target.pos);
+
+        bot.teleportTo(level,
+                target.pos().getX() + 0.5D,
+                target.pos().getY() + 1.0D,   // 站箱顶上方一格，避免脚底嵌进下一层方块而卡箱（见 ContainerWithdrawAction 注释）
+                target.pos().getZ() + 0.5D,
+                Set.<Relative>of(), bot.getYRot(), bot.getXRot(), false);
+        return true;   // 下一 tick 已到位，再开箱
+    }
+
+    /**
+     * 阶段②：已定位到目标箱但还没开箱 → 本 tick 开箱。
+     *
+     * <p>开箱失败（方块不可开 / 菜单未创建）时记 {@code message} 并跳过该箱（{@code currentIndex++}）。
+     *
+     * @return 恒 true（继续下一 tick）
+     */
+    private boolean openBox(TargetSlot target) {
+        ServerPlayer bot = getFakePlayer();
+        ServerLevel level = level();
+        BlockPos boxPos = target.pos();
+
+        // ⚠️ 用方块状态的标准菜单入口（而非裸 blockEntity）：双箱会被合并成 54 格菜单，
+        //    与 collectTargets 用 fullContainerFor 记录的槽号一致；否则打开 27 格菜单、
+        //    槽 27~52 全越界 → 取 0 个（2026-09-23 双箱 bug 实证）。
+        MenuProvider provider =
+                com.flt.carpetaddition.storage.ContainerGroup.menuProviderFor(level, boxPos);
+        if (provider == null) {
+            message = "目标方块不是可打开容器（已跳过）：" + boxPos;
+            FLTAdditionMod.LOGGER.info("[FLT][取货] {} 位置 {} 不可开箱，跳过", itemIdText, boxPos);
+            currentIndex++;
+            return true;
+        }
+        // 容器格数用与 collectTargets 完全同源（fullContainerFor），保证槽号对齐。
+        Container full = com.flt.carpetaddition.storage.ContainerGroup.fullContainerFor(level, boxPos);
+        containerSize = full != null ? full.getContainerSize() : 0;
+        OptionalInt menuId = bot.openMenu(provider);
+        if (menuId.isEmpty() || bot.containerMenu == null) {
+            message = "打开容器失败（已跳过）：" + boxPos;
+            FLTAdditionMod.LOGGER.info("[FLT][取货] {} 打开容器 {} 失败（菜单未创建），跳过", itemIdText, boxPos);
+            currentIndex++;
+            return true;
+        }
+        menu = bot.containerMenu;
+        FLTAdditionMod.LOGGER.info("[FLT][取货] {} 已打开 {} 的容器（{} 槽）", itemIdText, boxPos, containerSize);
+        return true;   // 下一 tick 再取槽
+    }
+
+    /**
+     * 阶段③：箱已开好 → 取当前槽，然后推进到下一目标槽。
+     *
+     * @return false = 动作结束（已取够 / 目标列表走完用 {@link #tick()} 的入口判断收尾）；否则 true
+     */
+    private boolean withdrawCurrentSlot(TargetSlot target) {
+        // 槽位越界：记 message 跳过该槽
         if (target.slotIndex() < 0 || target.slotIndex() >= containerSize
                 || target.slotIndex() >= menu.slots.size()) {
             message = "槽位失效（已跳过）：" + target.pos() + " #" + target.slotIndex();
@@ -302,7 +322,7 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
             return true;
         }
 
-        int moved = withdrawOneStep(bot, target);
+        int moved = withdrawOneStep(getFakePlayer(), target);
         if (moved > 0) {
             withdrawn += moved;
             FLTAdditionMod.LOGGER.info("[FLT][取货] {} 槽 {} 取 {} 个（累计 {}）", itemIdText,
@@ -334,7 +354,7 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
 
         // boxMode 槽里必须是潜影盒；非 boxMode 槽里必须是目标物品
         if (boxMode) {
-            if (!isSingleShulkerOfTarget(inSlot, targetItem)) {
+            if (!ShulkerBoxUtil.isSingleShulkerOfTarget(inSlot, targetItem)) {
                 return -1;
             }
         } else if (!inSlot.is(targetItem)) {
@@ -384,53 +404,18 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
         }
         int want = Math.max(0, Math.min(inside, target.count()));
 
-        // 目标物品：塞进假人背包。注意本 MC 版本 Inventory.add(stack) 返回 boolean（是否全放完），
-        // 且【原地把参数栈改成"塞不下的剩余"】——即 add 内部 shrink 掉放下的部分、剩余写回入参。
-        // 所以放完后再读 toAdd.getCount() 即得"没塞下的数量"，accepted = want - 剩余。
-        ItemStack toAdd = new ItemStack(targetItem, want);
-        bot.getInventory().add(toAdd);                      // add 后 toAdd = 塞不下的剩余
-        int accepted = want - toAdd.getCount();             // 实际塞进背包的数量
-        if (accepted <= 0) {
+        // 抠盒内物品 + add() 原地改入参的坑，统一在 ShulkerBoxUtil.takeOutInside（与单箱版共用一份实现）
+        ShulkerBoxUtil.TakeOut out = ShulkerBoxUtil.takeOutInside(bot, boxInSlot, targetItem, want);
+        if (!out.accepted()) {
             return -1;   // 背包塞不下一个 → 稍后重试其它槽也一样的 → 返回 -1（状态机会继续）
         }
 
-        // 从盒子里扣掉 accepted 个目标物品，重写盒内容；剩余盒写回仓库原槽。
-        net.minecraft.world.item.component.ItemContainerContents contents =
-                boxInSlot.get(net.minecraft.core.component.DataComponents.CONTAINER);
-        int toRemove = accepted;
-        java.util.List<ItemStack> newInners = new java.util.ArrayList<>();
-        if (contents != null) {
-            for (ItemStack inner : contents.nonEmptyItemCopyStream().toList()) {
-                if (toRemove > 0
-                        && BuiltInRegistries.ITEM.getKey(inner.getItem())
-                                .equals(BuiltInRegistries.ITEM.getKey(targetItem))) {
-                    int cut = Math.min(toRemove, inner.getCount());
-                    int remain = inner.getCount() - cut;
-                    toRemove -= cut;
-                    if (remain > 0) {
-                        newInners.add(inner.copyWithCount(remain));
-                    }
-                    continue;
-                }
-                newInners.add(inner);
-            }
-        }
-        // 处理后的盒内容写回菜单槽（剩余内容 / 目标取光则为空盒存原槽）
-        if (newInners.isEmpty()) {
-            // 目标物品恰好取光且盒里也没其它东西 → 写回"空盒"
-            boxInSlot.set(net.minecraft.core.component.DataComponents.CONTAINER,
-                    net.minecraft.world.item.component.ItemContainerContents.fromItems(java.util.List.of()));
-        } else {
-            boxInSlot.set(net.minecraft.core.component.DataComponents.CONTAINER,
-                    net.minecraft.world.item.component.ItemContainerContents.fromItems(newInners));
-        }
         // 让菜单 / 底层容器感知到盒子内容变化（setItem 会标记 dirty + 同步）
         menu.slots.get(target.slotIndex()).set(boxInSlot);
-        // 原盒可能已空内容，但盒本身(ItemStack)不变 → 原槽仍是这个盒（空盒/半盒）
 
         FLTAdditionMod.LOGGER.info("[FLT][取货][拆盒] {} 从仓库 {} 槽 {} 的盒里取出 {} 个（盒内剩 {} 种物品）",
-                itemIdText, target.pos(), target.slotIndex(), accepted, newInners.size());
-        return accepted;
+                itemIdText, target.pos(), target.slotIndex(), out.moved(), out.remainingKinds());
+        return out.moved();
     }
 
     /** 统计假人背包（含快捷栏）里某物品的总数 */

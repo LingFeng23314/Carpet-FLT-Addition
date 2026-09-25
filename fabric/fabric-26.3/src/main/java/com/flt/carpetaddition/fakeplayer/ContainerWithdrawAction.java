@@ -2,8 +2,8 @@ package com.flt.carpetaddition.fakeplayer;
 
 import carpet.patches.EntityPlayerMPFake;
 import com.flt.carpetaddition.FLTAdditionMod;
+import com.flt.carpetaddition.storage.StackCounter;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
@@ -15,11 +15,8 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -213,7 +210,7 @@ public class ContainerWithdrawAction extends AbstractFakePlayerAction {
                 continue;
             }
 
-            if (boxMode && isSingleShulkerOfTarget(inSlot)) {
+            if (boxMode && ShulkerBoxUtil.isSingleShulkerOfTarget(inSlot, targetItem)) {
                 // 整盒取：优先这片"单一内容潜影盒"槽；多个盒时取盒数最多的
                 if (inSlot.getCount() > boxCount) {
                     boxSlot = i;
@@ -240,24 +237,6 @@ public class ContainerWithdrawAction extends AbstractFakePlayerAction {
     }
 
     /**
-     * 判断槽里是否"单一内容潜影盒"且盒内全部是目标物品（供 boxMode 整盒取用）。
-     *
-     * <p>判断逻辑与 {@code StockScanner} / {@code StackCounter} 一致：
-     * 槽 stack 本身就是潜影盒（{@code ItemTags.SHULKER_BOXES}），且 {@code StackCounter.count}
-     * 能把它展开成目标物品（展开即表示盒内非混装）。空盒 / 混装盒都不算（整盒取也没意义）。
-     */
-    private boolean isSingleShulkerOfTarget(ItemStack slotStack) {
-        if (slotStack.isEmpty() || !slotStack.is(net.minecraft.tags.ItemTags.SHULKER_BOXES)) {
-            return false;
-        }
-        com.flt.carpetaddition.storage.StackCounter.Count count =
-                com.flt.carpetaddition.storage.StackCounter.count(slotStack);
-        // 空盒：count 返回"盒本身"（itemId=shulker 非目标）；目标物品的单一内容盒 → itemId 匹配
-        return count != null
-                && count.itemId().equals(BuiltInRegistries.ITEM.getKey(targetItem));
-    }
-
-    /**
      * 找"单一内容潜影盒"槽（盒内全是指定物品），用于<b>散装模式下的拆盒取</b>。
      *
      * <p>[VERSION] 2026-09-24 新增。多个可拆的盒时取"盒里目标物品最多"的那个
@@ -268,14 +247,14 @@ public class ContainerWithdrawAction extends AbstractFakePlayerAction {
     private int selectUnpackableBoxSlot() {
         int best = -1;
         int bestInside = 0;
+        final Identifier targetId = BuiltInRegistries.ITEM.getKey(targetItem);
 
         for (int i = 0; i < containerSize; i++) {
             ItemStack inSlot = menu.slots.get(i).getItem();
-            if (!isSingleShulkerOfTarget(inSlot)) {
+            if (!ShulkerBoxUtil.isSingleShulkerOfTarget(inSlot, targetItem)) {
                 continue;
             }
-            int inside = com.flt.carpetaddition.storage.StackCounter
-                    .countTargetInsideBox(inSlot, BuiltInRegistries.ITEM.getKey(targetItem));
+            int inside = StackCounter.countTargetInsideBox(inSlot, targetId);
             if (inside > bestInside) {
                 best = i;
                 bestInside = inside;
@@ -287,11 +266,8 @@ public class ContainerWithdrawAction extends AbstractFakePlayerAction {
     /**
      * 从"单一内容潜影盒"里取出目标物品（拆盒取散装），剩余内容写回原槽（取光则留空盒）。
      *
-     * <p>实现与 {@code MultiContainerWithdrawAction.withdrawInsideBox} 一致 ——
-     * 那套已经在用、踩平了"潜影盒组件读写"的坑，这里做单箱版的等价实现，不另发明一套。
-     *
-     * <p><b>注意一个容易踩的坑</b>：{@code Inventory.add(ItemStack)} 会<b>原地把入参栈改成
-     * "塞不下的剩余"</b>，所以放完后再读 {@code toAdd.getCount()} 就是没塞下的数量。
+     * <p>核心的"抠盒内物品 + {@code add()} 原地改入参"逻辑统一在
+     * {@link ShulkerBoxUtil#takeOutInside} 里（与 {@code MultiContainerWithdrawAction} 共用一份实现）。
      *
      * @param slotIndex 盒所在菜单槽
      * @param want      期望取出数量（&le;0 或极大 == 尽量取）
@@ -303,50 +279,18 @@ public class ContainerWithdrawAction extends AbstractFakePlayerAction {
             return -1;
         }
 
-        final Identifier targetId = BuiltInRegistries.ITEM.getKey(targetItem);
-        final int inside = com.flt.carpetaddition.storage.StackCounter
-                .countTargetInsideBox(boxInSlot, targetId);
-        if (inside <= 0) {
+        ShulkerBoxUtil.TakeOut out =
+                ShulkerBoxUtil.takeOutInside(getFakePlayer(), boxInSlot, targetItem, want);
+        if (!out.accepted()) {
             return -1;
         }
 
-        final int take = Math.max(0, Math.min(inside, want));
-
-        // 目标物品塞进假人背包（add 会把塞不下的剩余写回 toAdd）
-        ItemStack toAdd = new ItemStack(targetItem, take);
-        getFakePlayer().getInventory().add(toAdd);
-        final int accepted = take - toAdd.getCount();
-        if (accepted <= 0) {
-            return -1;   // 背包塞不下 → 由上层决定继续还是收尾
-        }
-
-        // 从盒内容里扣掉 accepted 个，剩余写回原槽
-        final ItemContainerContents contents = boxInSlot.get(DataComponents.CONTAINER);
-        int toRemove = accepted;
-        List<ItemStack> newInners = new ArrayList<>();
-
-        if (contents != null) {
-            for (ItemStack inner : contents.nonEmptyItemCopyStream().toList()) {
-                if (toRemove > 0 && BuiltInRegistries.ITEM.getKey(inner.getItem()).equals(targetId)) {
-                    int cut = Math.min(toRemove, inner.getCount());
-                    int remain = inner.getCount() - cut;
-                    toRemove -= cut;
-                    if (remain > 0) {
-                        newInners.add(inner.copyWithCount(remain));
-                    }
-                    continue;
-                }
-                newInners.add(inner);
-            }
-        }
-
-        // 取光则写回"空盒"（fromItems(空表) 即空内容盒），盒物品本身仍留在原槽
-        boxInSlot.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(newInners));
+        // 取走后的盒内容写回原槽（取光则为"空内容盒"，盒物品本身仍留原槽）
         menu.slots.get(slotIndex).set(boxInSlot);
 
         FLTAdditionMod.LOGGER.info("[FLT][取货][拆盒] {} 从仓库 {} 槽 {} 的盒里取出 {} 个（盒内剩 {} 种物品）",
-                targetItem, containerPos, slotIndex, accepted, newInners.size());
-        return accepted;
+                targetItem, containerPos, slotIndex, out.moved(), out.remainingKinds());
+        return out.moved();
     }
 
     /** 统计假人背包（含快捷栏）里某物品的总数 */
