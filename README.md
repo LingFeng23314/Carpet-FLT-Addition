@@ -1,163 +1,14 @@
 # Carpet FLT Addition
 
-**English | [简体中文](README.zh-CN.md)**
+**[简体中文](README.zh-CN.md) | English**
 
 > This project is developed with deep AI assistance.
 
-An extension mod for [Carpet](https://github.com/gnembon/fabric-carpet) (fabric-carpet),
-providing practical rules and fake-player automation.
+An extension mod for [Carpet](https://github.com/gnembon/fabric-carpet) (fabric-carpet), providing practical rules and fake-player automation (material restocking, librarian trade rerolling, ...).
 
-Works with Minecraft **1.16.5 ~ 26.3**.
+Works with Minecraft 1.16.5 ~ 26.3.
 
----
-
-## Index
-
-- [Features](#features)
-- [Dependencies](#dependencies)
-- [Installation](#installation)
-- [Commands](#commands)
-- [Rules](#rules)
-- [Version Support](#version-support)
-- [License](#license)
-
----
-
-## Features
-
-The mod consists of three parts:
-
-| Part | Description |
-|---|---|
-| **Carpet rules** | 18 rules, toggled via `/carpet` or Carpet's config GUI |
-| **Fake-player restocking** | Automatically dispatches fake players to fetch materials from your storage based on the schematic's material demand; manual fetching is also supported |
-| **Client integration** | Works together with the **FLT Tools** client mod (fetch GUI, automatic material reporting) |
-
-### How fake-player restocking works
-
-1. Register storage containers with `/flt stock add` (aim at a container) or `/flt stock addarea <pos1> <pos2>`
-2. Enable `/carpet autoRestock true`, and install **FLT Tools** on the client so the Litematica
-   material demand is reported automatically (or set demand manually with `/flt demand set <item> <count>`)
-3. Fake players fetch the materials from your storage and deliver them next to you — just take them from the bot's inventory
-
-> The FLT Tools client mod provides a full **fetch GUI**: open with a hotkey → pick an item
-> (showing live storage counts) → set the amount → confirm → a bot delivers it to you.
-
----
-
-## Dependencies
-
-| Name | Type | Notes |
-|---|---|---|
-| [Carpet](https://modrinth.com/mod/carpet) | **Required** | Use the latest version for your game version |
-| [Fabric API](https://modrinth.com/mod/fabric-api) | **Required** | Latest recommended |
-| [MixinExtras](https://modrinth.com/mod/mixinextras) | Bundled | Already included via `include(...)`; no separate install needed |
-| **FLT Tools** | Optional (client) | Companion client mod: fetch GUI + automatic material reporting |
-
----
-
-## Installation
-
-1. Install **Carpet** + **Fabric API** on the server (or in `.minecraft/mods/` for single-player)
-2. Drop `carpet-flt-addition-<version>+<mcversion>.jar` into `mods/`
-3. Restart the server / game
-
-> Rules are toggled with `/carpet <rule> <value>` or in Carpet's config file.
-> Fake-player features (`autoRestock`, etc.) require an integrated or dedicated server.
-
----
-
-## Commands
-
-All commands are rooted at `/flt` (except `/Tradefinder`).
-
-### `/flt stock` — storage source management
-
-| Command | Description |
-|---|---|
-| `/flt stock add` | Register the container you are **aiming at** as a storage source |
-| `/flt stock remove` | Remove the container you are aiming at |
-| `/flt stock list` | List all registered storage sources |
-| `/flt stock clear` | Clear all registrations |
-| `/flt stock addarea <pos1> <pos2>` | Bulk-register an area (warns if the selection is too large) |
-
-### `/flt demand` — material demand
-
-| Command | Description |
-|---|---|
-| `/flt demand set <item> <count>` | Set the required amount of an item |
-| `/flt demand show` | Show the current demand list |
-| `/flt demand clear` | Clear the demand list |
-
-### `/flt fetch` — manual fetching
-
-| Command | Description |
-|---|---|
-| `/flt fetch <bot> <item> [count]` | Make the given bot fetch from storage (no count = as many as possible) |
-
-### `/flt endgate` — end gateway
-
-| Command | Description |
-|---|---|
-| `/flt endgate reset` | Reset the pairing of the gateway you are aiming at; the next traversal regenerates the exit according to `endGatewayExitSearchDistance` |
-
-### `/Tradefinder` — librarian trade search
-
-| Command | Description |
-|---|---|
-| `/Tradefinder select <bot>` | Aim at a lectern to bind it; the bot then repeatedly breaks/replaces the lectern to reroll trades |
-| `/Tradefinder stop <bot>` | Stop rerolling |
-| `/Tradefinder <bot> <enchantment> <level> <price>` | Search for a trade matching the enchantment / level / max price |
-
-> Requires `/carpet villagerTradeRefresh vanilla` or `force` to be enabled first.
-
----
-
-## Rules
-
-### General
-
-| Rule | Type | Default | Description |
-|---|---|---|---|
-| `NoCreeperGrief` | boolean | `false` | Creeper explosions no longer destroy terrain |
-| `infinityBowNoArrows` | boolean | `false` | Bows with Infinity can shoot non-consuming arrows even with an empty inventory |
-| `LavaStrider` | boolean | `false` | Depth Strider also works in lava |
-| `missingToolsPlus` | String | `#none` | More tools count as effective tools for mining glass (`pickaxe` / `axe` / `shovel` / `hoe`) |
-| `leashableMinecarts` | boolean | `false` | Minecarts can be leashed and pulled like boats (install this mod client-side too for smooth interaction) |
-| `limitPillagerPatrolSpawn` | boolean | `false` | Pillager patrol spawning is affected by the mob cap |
-| `grindstoneEnchantmentDuplication` | boolean | `false` | Grindstone enchantment duplication (replicates the 24w10a~24w11a snapshot behavior, no XP needed) |
-| `witherSkeletonNoStoneSword` | boolean | `false` | Wither skeletons no longer drop stone swords (bones/coal/skulls drop as usual) |
-
-### Villagers & trading
-
-| Rule | Type | Default | Description |
-|---|---|---|---|
-| `villagerTradeSwiftSneak` | boolean | `false` | Librarians can sell Swift Sneak enchanted books |
-| `villagerTradeWindBurst` | boolean | `false` | Librarians can sell Wind Burst enchanted books |
-| `villagerTradeRefresh` | String | `false` | Reroll librarian trades with a fake player: `vanilla` = break/replace lectern; `force` = reroll directly server-side (much faster) |
-| `forceRestock` | boolean | `false` | Shoot a villager with a spectral arrow to force it to restock |
-| `villagersAttractedByEmeraldBlock` | boolean | `false` | Holding an emerald block attracts nearby villagers |
-
-### Fake-player restocking
-
-| Rule | Type | Default | Description |
-|---|---|---|---|
-| `autoRestock` | boolean | `false` | Automatically dispatch fake players to fetch materials based on demand (register containers with `/flt stock add` first) |
-| `restockIntervalTicks` | int | `20` | How often (in ticks) to scan for shortages and dispatch |
-| `fltFakePlayerPrefix` | String | — | Name prefix of restocking bots (prefix + player name is truncated to 16 chars; longer names will disconnect clients) |
-
-### Misc
-
-| Rule | Type | Default | Description |
-|---|---|---|---|
-| `xaeroMapName` | String | `#none` | Requires Xaero's World Map on the client; solves map data mixing on proxy networks (BungeeCord / Velocity) |
-| `endGatewayExitSearchDistance` | int | `0` | Search distance for the paired end gateway exit; `0` = vanilla 1024, `>0` = custom (use `/flt endgate reset` to re-pair existing gateways) |
-
----
-
-## Version Support
-
-| Game Version | Status |
+| Game Version | Development Status |
 |---|---|
 | 1.16.5 | Maintained |
 | 1.17.1 | Maintained |
@@ -177,14 +28,250 @@ All commands are rooted at `/flt` (except `/Tradefinder`).
 | 26.2 | Maintained |
 | 26.3 | Maintained |
 
-> Use the Carpet build matching your game version; prefer the latest.
+Use it together with the Carpet mod of the same Minecraft version; prefer the latest Carpet.
 
----
+## Dependencies
+
+- [Carpet](https://modrinth.com/mod/carpet) (required; use the latest version whenever possible)
+- [Fabric API](https://modrinth.com/mod/fabric-api) (required; use the latest version whenever possible)
+- [MixinExtras](https://modrinth.com/mod/mixinextras) (bundled via `include(...)`; no separate install needed)
+- **FLT Tools** (optional, client) — companion client mod: fetch GUI + automatic material reporting
+
+## Index
+
+**Rules**
+
+- [No Creeper Grief](#no-creeper-grief-nocreepergrief)
+- [Wither Skeleton No Stone Sword](#wither-skeleton-no-stone-sword-witherskeletonnostonesword)
+- [Infinity Bow No Arrows](#infinity-bow-no-arrows-infinitybownoarrows)
+- [Lava Strider](#lava-strider-lavastrider)
+- [Missing Tools Plus](#missing-tools-plus-missingtoolsplus)
+- [Leashable Minecarts](#leashable-minecarts-leashableminecarts-mc121)
+- [Limit Pillager Patrol Spawn](#limit-pillager-patrol-spawn-limitpillagerpatrolspawn-mc1182)
+- [Grindstone Enchantment Duplication](#grindstone-enchantment-duplication-grindstoneenchantmentduplication-mc121)
+- [Villager Trade Swift Sneak](#villager-trade-swift-sneak-villagertradeswiftsneak-mc1194)
+- [Villager Trade Wind Burst](#villager-trade-wind-burst-villagertradewindburst-mc121)
+- [Villager Trade Refresh](#villager-trade-refresh-villagertraderefresh)
+- [Force Restock](#force-restock-forcerestock)
+- [Emerald Block Attracts Villagers](#emerald-block-attracts-villagers-villagersattractedbyemeraldblock)
+- [Xaero Map World Name](#xaero-map-world-name-xaeromapname)
+- [End Gateway Exit Search Distance](#end-gateway-exit-search-distance-endgatewayexitsearchdistance-mc2612)
+- [Auto Restock](#auto-restock-autorestock-mc2612)
+- [Restock Interval Ticks](#restock-interval-ticks-restockintervalticks-mc2612)
+- [Restock Fake Player Prefix](#restock-fake-player-prefix-itemfetcherprefix-mc2612)
+
+**Commands**
+
+- [`/Tradefinder`](#tradefinder) — librarian trade search (all versions)
+- [`/Itemfetcher`](#itemfetcher) — fake-player material fetching: storage sources / demand / fetch (**26.x only**)
+- [`/Gatewayfixer`](#gatewayfixer) — end gateway re-pairing (**26.x only**)
+
+## Rules List
+
+### No Creeper Grief (noCreeperGrief)
+
+Creeper explosions no longer destroy your terrain.
+
+- Type: `boolean`
+- Default: `false`
+- Options: `true`, `false`
+- Categories: `FLT`, `feature`
+
+### Wither Skeleton No Stone Sword (witherSkeletonNoStoneSword)
+
+Wither skeletons no longer drop their stone sword (bones, coal and skulls drop as usual).
+
+- Type: `boolean`
+- Default: `false`
+- Options: `true`, `false`
+- Categories: `FLT`, `feature`
+
+### Infinity Bow No Arrows (infinityBowNoArrows)
+
+Bows enchanted with Infinity can shoot non-consuming arrows even with an empty inventory.
+
+- Type: `boolean`
+- Default: `false`
+- Options: `true`, `false`
+- Categories: `FLT`, `feature`
+
+### Lava Strider (lavaStrider)
+
+Depth Strider also works in lava (swim fast! :D)
+
+- Type: `boolean`
+- Default: `false`
+- Options: `true`, `false`
+- Categories: `FLT`, `feature`
+
+### Missing Tools Plus (missingToolsPlus)
+
+More tools can serve as effective tools for mining glass.
+
+- Type: `String`
+- Default: `#none`
+- Options: `#none`, `pickaxe`, `axe`, `shovel`, `hoe`
+- Categories: `FLT`, `survival`
+
+### Leashable Minecarts (leashableMinecarts) `MC>=1.21`
+
+Minecarts can be leashed and pulled around like boats.
+
+> The **client** must also install this mod for smooth leash interaction (otherwise right-click may be predicted as "mount").
+
+- Type: `boolean`
+- Default: `false`
+- Options: `true`, `false`
+- Categories: `FLT`, `feature`
+
+### Limit Pillager Patrol Spawn (limitPillagerPatrolSpawn) `MC>=1.18.2`
+
+Pillager patrol spawning is affected by the mob cap.
+
+- Type: `boolean`
+- Default: `false`
+- Options: `true`, `false`
+- Categories: `FLT`, `feature`
+
+### Grindstone Enchantment Duplication (grindstoneEnchantmentDuplication) `MC>=1.21`
+
+Replicates the 24w10a ~ 24w11a snapshot behavior: enchantments in the bottom slot are copied onto the top slot item.
+
+- Type: `boolean`
+- Default: `false`
+- Options: `true`, `false`
+- Categories: `FLT`, `feature`
+
+### Villager Trade Swift Sneak (villagerTradeSwiftSneak) `MC>=1.19.4`
+
+Allows librarian villagers to sell Swift Sneak enchanted books.
+
+- Type: `boolean`
+- Default: `false`
+- Options: `true`, `false`
+- Categories: `FLT`, `feature`
+
+### Villager Trade Wind Burst (villagerTradeWindBurst) `MC>=1.21`
+
+Allows librarian villagers to sell Wind Burst enchanted books.
+
+- Type: `boolean`
+- Default: `false`
+- Options: `true`, `false`
+- Categories: `FLT`, `feature`
+
+### Villager Trade Refresh (villagerTradeRefresh)
+
+Reroll librarian trades with a fake player: `vanilla` = break/replace the lectern; `force` = reroll directly server-side (much faster).
+
+> Used together with the `/Tradefinder` command. Only villagers that have never been traded with can be rerolled (vanilla `villagerXp == 0` gate).
+
+- Type: `String`
+- Default: `false`
+- Options: `false`, `vanilla`, `force`
+- Categories: `FLT`, `feature`
+
+### Force Restock (forceRestock)
+
+Shoot a villager with a spectral arrow to force it to restock (ignores the vanilla 2-times-per-day limit).
+
+- Type: `boolean`
+- Default: `false`
+- Options: `true`, `false`
+- Categories: `FLT`, `feature`
+
+### Emerald Block Attracts Villagers (villagersAttractedByEmeraldBlock)
+
+Holding an emerald block attracts nearby villagers.
+
+- Type: `boolean`
+- Default: `false`
+- Options: `true`, `false`
+- Categories: `FLT`, `feature`
+
+### Xaero Map World Name (xaeroMapName)
+
+Requires **Xaero's World Map** on the client. Separates map data per world on proxy networks (BungeeCord / Velocity).
+
+- Type: `String`
+- Default: `#none`
+- Categories: `FLT`
+
+### End Gateway Exit Search Distance (endGatewayExitSearchDistance) `MC>=26.1.2`
+
+Search distance for the paired end-gateway exit: `0` = vanilla (1024 blocks along the radius), `>0` = custom distance.
+
+> Use `/Gatewayfixer` to re-pair existing gateways.
+
+- Type: `int`
+- Default: `0`
+- Categories: `FLT`, `feature`
+
+### Auto Restock (autoRestock) `MC>=26.1.2`
+
+Automatically dispatches fake players to fetch materials from your storage based on the material demand.
+
+> Register containers with `/Itemfetcher stock add` first. Requires the **FLT Tools** client mod to report Litematica material demand automatically.
+
+- Type: `boolean`
+- Default: `false`
+- Options: `true`, `false`
+- Categories: `FLT`, `feature`
+
+### Restock Interval Ticks (restockIntervalTicks) `MC>=26.1.2`
+
+How often (in ticks) to scan for material shortages and dispatch fake players. `20` = 1 second.
+
+- Type: `int`
+- Default: `20`
+- Categories: `FLT`
+
+### Restock Fake Player Prefix (itemFetcherPrefix) `MC>=26.1.2`
+
+Name prefix of the restocking fake players (the bot name is prefix + `fetch` (the default `flt_` gives `flt_fetch`), truncated to 16 characters).
+
+> Only affects FLT restocking bots, not other fake players using Carpet's global `fakePlayerNamePrefix`.
+
+- Type: `String`
+- Default: `flt_`
+- Categories: `FLT`
+
+## Commands
+
+### /Tradefinder
+
+Librarian trade search (**available on all versions**). Requires `/carpet villagerTradeRefresh vanilla` or `force` to be enabled first.
+
+| Command | Description |
+|---|---|
+| `/Tradefinder select <bot>` | Aim at a lectern to bind it to the bot; the bot then repeatedly breaks/replaces the lectern to reroll trades |
+| `/Tradefinder stop <bot>` | Stop rerolling |
+| `/Tradefinder <bot> <enchantment> <level> <price>` | Search for a trade matching the enchantment / level / max price |
+
+### /Itemfetcher
+
+Fake-player material fetching (**26.x only**): register storage sources, set the material demand, and make bots fetch it.
+
+| Command | Description |
+|---|---|
+| `/Itemfetcher stock add` | Register the container you are aiming at as a storage source |
+| `/Itemfetcher stock addarea <pos1> <pos2>` | Bulk-register an area as storage sources |
+| `/Itemfetcher stock remove` | Remove the container you are aiming at |
+| `/Itemfetcher stock list` | List all registered storage sources |
+| `/Itemfetcher stock clear` | Clear all registrations |
+| `/Itemfetcher demand set <item> <count>` | Set the required amount of an item |
+| `/Itemfetcher demand show` | Show the current demand list |
+| `/Itemfetcher demand clear` | Clear the demand list |
+| `/Itemfetcher fetch <bot> <item> [count]` | Make the given bot fetch from storage (no count = as many as possible) |
+
+### /Gatewayfixer
+
+End gateway re-pairing (**26.x only**).
+
+| Command | Description |
+|---|---|
+| `/Gatewayfixer` | Reset the pairing of the gateway you are aiming at; the next traversal regenerates the exit according to `endGatewayExitSearchDistance` |
 
 ## License
 
-Released under the **GNU LGPL-3.0** license (see [LICENSE](LICENSE)).
-
-Several third-party projects were referenced or ported during development
-(Carpet-Org-Addition, Carpet-LMS-Addition, etc.).
-See **[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)** for the full list of sources, authors and licenses.
+This project is released under the **GNU LGPL-3.0** license (see [LICENSE](LICENSE)).
