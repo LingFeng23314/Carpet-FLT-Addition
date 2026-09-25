@@ -370,7 +370,7 @@ public final class RestockScheduler {
         if (bot == null) {
             if (firstStockSpot(server) == null) {
                 notify(server, playerId, ChatFormatting.RED,
-                        "[FLT] 备货失败：还没登记任何库存源仓库（用 /flt stock add 添加）");
+                        "[FLT] 备货失败：还没登记任何库存源仓库（用 /Itemfetcher stock add 添加）");
                 return false;
             }
             Consumer<EntityPlayerMPFake> onReady = fake -> startRestockAll(server, playerId, playerName, demand);

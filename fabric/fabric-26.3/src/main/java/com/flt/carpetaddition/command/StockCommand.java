@@ -29,15 +29,15 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * /flt stock 命令（组合拳二期）：管理"自动备货的库存源"（哪些箱子可以让假人去取货）。
+ * /Itemfetcher stock 命令（组合拳二期）：管理"自动备货的库存源"（哪些箱子可以让假人去取货）。
  *
  * <p>用法（add/remove 以准星指向为准；addarea 用两点坐标）：
  * <pre>
- * /flt stock add                       把准星指向的容器加入库存源
- * /flt stock remove                    从库存源移除准星指向的容器
- * /flt stock addarea &lt;pos1&gt; &lt;pos2&gt;    区域扫描：把该范围内已加载区块里的容器批量登记
- * /flt stock list                      查看库存源数量 + 扫描出的物品统计（前若干项）
- * /flt stock clear                     清空库存源
+ * /Itemfetcher stock add                       把准星指向的容器加入库存源
+ * /Itemfetcher stock remove                    从库存源移除准星指向的容器
+ * /Itemfetcher stock addarea &lt;pos1&gt; &lt;pos2&gt;    区域扫描：把该范围内已加载区块里的容器批量登记
+ * /Itemfetcher stock list                      查看库存源数量 + 扫描出的物品统计（前若干项）
+ * /Itemfetcher stock clear                     清空库存源
  * </pre>
  * 自动备货只会从这些已登记的容器里取货，避免假人到处乱翻箱子。
  * 库存源会<b>持久化</b>到 {@code <world>/carpet-flt-stock.json}，服务器重启自动恢复。
@@ -52,7 +52,7 @@ public final class StockCommand {
     }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext buildContext) {
-        dispatcher.register(Commands.literal("flt")
+        dispatcher.register(Commands.literal("Itemfetcher")
                 .then(Commands.literal("stock")
                         .then(Commands.literal("add").executes(StockCommand::add))
                         .then(Commands.literal("remove").executes(StockCommand::remove))

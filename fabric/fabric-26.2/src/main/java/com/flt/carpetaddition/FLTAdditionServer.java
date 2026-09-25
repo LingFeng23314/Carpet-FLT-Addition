@@ -70,7 +70,7 @@ public class FLTAdditionServer implements CarpetExtension {
         RestockScheduler.tickRecycle(server);
     }
 
-    /** 注册 /Tradefinder、/flt endgate、/flt fetch、/flt stock、/flt demand 命令 */
+    /** 注册 /Tradefinder、/Itemfetcher（stock / demand / fetch）、/Gatewayfixer 命令 */
     @Override
     public void registerCommands(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext buildContext) {
         TradefinderCommand.register(dispatcher, buildContext);

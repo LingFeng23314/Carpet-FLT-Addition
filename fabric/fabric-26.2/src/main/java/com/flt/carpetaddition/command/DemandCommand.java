@@ -22,15 +22,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * /flt demand 命令（组合拳二期）：设置/查看"本玩家的投影材料需求"。
+ * /Itemfetcher demand 命令（组合拳二期）：设置/查看"本玩家的投影材料需求"。
  *
  * <p>正常流程下需求由客户端（flt-tools + Litematica）上报 {@code MaterialDemandPayload}；
  * 本命令作为<b>手动入口 / 测试兜底</b>，不依赖客户端也能验证自动备货链路。
  *
  * <pre>
- * /flt demand set &lt;物品&gt; &lt;数量&gt;   设置该材料的所需总数（覆盖同物品旧值，保留其它物品）
- * /flt demand show                 查看当前需求
- * /flt demand clear                清空需求
+ * /Itemfetcher demand set &lt;物品&gt; &lt;数量&gt;   设置该材料的所需总数（覆盖同物品旧值，保留其它物品）
+ * /Itemfetcher demand show                 查看当前需求
+ * /Itemfetcher demand clear                清空需求
  * </pre>
  */
 public final class DemandCommand {
@@ -38,7 +38,7 @@ public final class DemandCommand {
     }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext buildContext) {
-        dispatcher.register(Commands.literal("flt")
+        dispatcher.register(Commands.literal("Itemfetcher")
                 .then(Commands.literal("demand")
                         .then(Commands.literal("set")
                                 .then(Commands.argument("item", ResourceArgument.resource(buildContext, Registries.ITEM))

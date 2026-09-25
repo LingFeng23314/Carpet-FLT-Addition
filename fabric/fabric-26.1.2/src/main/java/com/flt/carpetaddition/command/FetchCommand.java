@@ -29,10 +29,10 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * /flt fetch 命令（组合拳二期：假人取货的指令兜底 / 手动入口）。
+ * /Itemfetcher fetch 命令（组合拳二期：假人取货的指令兜底 / 手动入口）。
  *
  * <p>用法：准星对准一个容器，执行
- * <pre>/flt fetch &lt;假人名&gt; &lt;物品&gt; [数量]</pre>
+ * <pre>/Itemfetcher fetch &lt;假人名&gt; &lt;物品&gt; [数量]</pre>
  * 数量省略 = 尽量取（取光容器里该物品）。命令会确保假人存在（不存在则分步建档），
  * 然后让假人传送到容器旁 → 打开容器 → 把该物品搬进自己背包。
  *
@@ -40,13 +40,13 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class FetchCommand {
     private static final SimpleCommandExceptionType ERROR_NOT_CONTAINER = new SimpleCommandExceptionType(
-            Component.literal("请把准星对准一个容器（箱子/木桶/潜影盒等），再执行 /flt fetch"));
+            Component.literal("请把准星对准一个容器（箱子/木桶/潜影盒等），再执行 /Itemfetcher fetch"));
 
     private FetchCommand() {
     }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext buildContext) {
-        dispatcher.register(Commands.literal("flt")
+        dispatcher.register(Commands.literal("Itemfetcher")
                 .then(Commands.literal("fetch")
                         .then(Commands.argument("bot", StringArgumentType.word())
                                 .then(Commands.argument("item", ResourceArgument.resource(buildContext, Registries.ITEM))
