@@ -40,7 +40,9 @@ import java.util.Optional;
  * 假人操作工具箱。
  * 走玩家自己的处理入口（interactionManager.interactBlock / lookAt / swingHand），而非直接 setBlock——
  * 这样服务端记录的行为与真人玩家一致，可录屏、可被其它插件当作正常玩家操作看待。
- * 参考 ORG 的 PlayerUtils / ServerUtils（MIT）；FLT 独立实现。
+ * <p>来源说明：部分方法的实现思路参考 Carpet-Org-Addition 的 PlayerUtils / ServerUtils
+ * （MIT License，Copyright (c) 2024 fcsailboat）；本类为独立编写，未复制其代码。
+ * 见项目根目录 THIRD-PARTY-NOTICES.md。
  */
 public final class FakePlayerUtils {
     private FakePlayerUtils() {

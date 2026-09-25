@@ -16,15 +16,19 @@
 - **版权**：Copyright (c) 2024 fcsailboat
 - **许可证**：MIT License（全文见本文末）
 
+**经逐行比对，本项目仅有 1 个源文件构成代码移植（占全部源文件约 2%），其余均为独立实现：**
+
 | 涉及文件 | 使用方式 |
 |---|---|
-| `fakeplayer/BlockExcavator.java` | **代码移植**。已改写变量名、适配 26.x API、重写中文注释；**文件顶部完整保留了 MIT 版权与许可声明** |
+| `fakeplayer/BlockExcavator.java` | **代码移植**（唯一）。已改写变量名、适配各版本 API、移除上游未使用的 public 方法、重写中文注释；**每个版本的文件顶部均保留了完整的 MIT 版权与许可声明** |
 | `fakeplayer/AbstractFakePlayerAction.java` | 参考接口设计思路，**独立编写，未复制代码** |
 | `fakeplayer/FakePlayerUtils.java` | 参考部分方法的实现思路，**独立编写，未复制代码** |
 | `fakeplayer/LibrarianTradeFindAction.java` | 参考动作流程设计，**独立编写，未复制代码** |
 
 > 依据 MIT 许可，Copyright 声明与许可声明必须随软件的所有副本或实质部分保留。
 > 因此 `BlockExcavator.java` 顶部的声明块**不可删除**。
+> 本项目全部 18 个版本目录（1.16.5 ~ 26.3，含 `origin` 模板）均已带上该声明块；
+> 打包时 `THIRD-PARTY-NOTICES.md` 也会一并放入 jar（见 `build.gradle` 的 `jar {}` 块）。
 
 ### 2. Carpet-LMS-Addition
 
@@ -32,7 +36,7 @@
 - **许可证**：GNU GPL-3.0
 
 **本项目仅参考其设计思路，未复制其任何代码。**
-（经行级比对：本项目与其最高代码重合度为 10%，且均为 `import` 语句与通用 Java 惯用写法。）
+（经全项目行级比对：本项目与其最高代码重合度为 **4%**，且均为 `import` 语句与通用 Java 惯用写法。）
 
 | 涉及文件 | 参考内容 |
 |---|---|

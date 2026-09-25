@@ -61,6 +61,9 @@ jar {
 	from("LICENSE") {
 		rename { "${it}_$projectName"}
 	}
+
+	// 第三方来源与许可声明（MIT 等许可要求声明随副本一并保留；jar 内不含源码注释）
+	from("../../THIRD-PARTY-NOTICES.md")
 }
 
 // configure the maven publication

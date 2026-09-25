@@ -12,12 +12,31 @@ import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameMode;
 
+/*
+ * ---------------------------------------------------------------------------
+ * 来源声明：本文件移植自 Carpet-Org-Addition 的 BlockExcavator。
+ *
+ *   原项目：Carpet-Org-Addition  https://github.com/fcsailboat/Carpet-Org-Addition
+ *   版权  ：Copyright (c) 2024 fcsailboat
+ *   许可  ：MIT License
+ *
+ * MIT License 要求「上述版权声明与许可声明须随本软件的所有副本或实质部分一并保留」，
+ * 故此声明不可删除。
+ *
+ * 本项目所做的修改：变量改名（player -> fakePlayer）；改用本项目的 FakePlayerUtils 获取
+ * 服务端世界；调用 yarn 名的 interactionManager.processBlockBreakingAction；移除上游未使用的
+ * getPlayer / canBreak / computingRemainingMiningTime 三个方法及 mining(BlockPos) /
+ * mining(BlockPos, boolean) 两个重载；重写中文注释。
+ *
+ * 完整的第三方来源清单见项目根目录 THIRD-PARTY-NOTICES.md。
+ * ---------------------------------------------------------------------------
+ */
+
 /**
  * 假人方块挖掘器（逐刻累积挖掘进度）。
  * 假人不能像真人那样"按住左键"，必须自己模拟：每刻调 mining 累积进度，满 1 时发 STOP 完成。
  * 走 player.interactionManager.processBlockBreakingAction（= 服务端处理 PlayerActionC2SPacket 的方法），
  * 行为与原版玩家完全一致（含工具速度、耐久、领地保护）。
- * 参考 ORG 的 BlockExcavator（MIT）；FLT 独立实现。
  */
 public class BlockExcavator {
     private final EntityPlayerMPFake fakePlayer;

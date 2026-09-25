@@ -6,7 +6,9 @@ import net.minecraft.server.world.ServerWorld;
 
 /** 假人动作基类。描述"一个假人正在做的事"，由 FakePlayerActionScheduler 每刻驱动。
  *  只保留"每刻执行一次 + 结束回调"，不做 ORG 的序列化/持久化/多动作管理树。
- *  参考 ORG 的 AbstractPlayerAction（MIT）；FLT 独立实现。
+ *  <p>来源说明：接口设计参考 Carpet-Org-Addition 的 AbstractPlayerAction
+ *  （MIT License，Copyright (c) 2024 fcsailboat）；本类为独立编写，未复制其代码。
+ *  见项目根目录 THIRD-PARTY-NOTICES.md。
  *  //# [VERSION] 本包仅 1.21+ 生成（假人刷交易功能）；1.20.1- 无此目录。 */
 public abstract class AbstractFakePlayerAction {
     private final EntityPlayerMPFake fakePlayer;

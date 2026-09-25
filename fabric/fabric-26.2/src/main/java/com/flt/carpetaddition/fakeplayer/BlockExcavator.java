@@ -10,7 +10,9 @@
  * 故此声明不可删除。
  *
  * 本项目所做的修改：变量改名（player -> fakePlayer）；适配 26.x API
- * （BlockPos.getCenter() 在该版本已移除，改用手写中心坐标）；重写中文注释。
+ * （BlockPos.getCenter() 在该版本已移除，改用手写中心坐标）；移除上游未使用的 getPlayer /
+ * canBreak / computingRemainingMiningTime 三个方法及 mining(BlockPos) / mining(BlockPos, boolean)
+ * 两个重载；重写中文注释。
  *
  * 完整的第三方来源清单见项目根目录 THIRD-PARTY-NOTICES.md。
  * ---------------------------------------------------------------------------

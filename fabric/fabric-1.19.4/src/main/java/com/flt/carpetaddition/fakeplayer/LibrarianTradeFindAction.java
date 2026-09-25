@@ -21,7 +21,9 @@ import java.util.Optional;
  * 因此原版"必须从未交易过"的限制（villagerXp == 0）自然生效，不绕过。
  * 目标村民按「工作站点 == 绑定讲台」唯一锁定（见 FakePlayerUtils.findLibrarian），多假人互不串抢。
  * 判定/收尾委托 TradeOfferMatcher/TradeLockHelper，反馈走 ActionReporter。
- * 参考 ORG 的 LibrarianTradeFindAction（MIT）；FLT 独立实现。
+ * <p>来源说明：动作流程的设计参考 Carpet-Org-Addition 的 LibrarianTradeFindAction
+ * （MIT License，Copyright (c) 2024 fcsailboat）；本类为独立编写，未复制其代码。
+ * 见项目根目录 THIRD-PARTY-NOTICES.md。
  */
 public class LibrarianTradeFindAction extends AbstractFakePlayerAction {
     protected final BlockPos lecternPos;
