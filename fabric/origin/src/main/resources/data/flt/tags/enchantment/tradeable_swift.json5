@@ -1,0 +1,10 @@
+// ONEWAY
+// RENAME tradeable_swift.json
+// IF >= fabric-1.19.4
+//{
+//  "values": [
+//    "#minecraft:tradeable",
+//    "minecraft:swift_sneak"
+//  ]
+//}
+// END IF

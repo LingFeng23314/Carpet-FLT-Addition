@@ -1,0 +1,77 @@
+plugins {
+	// 26.1+ 未混淆版本必须用新版插件 net.fabricmc.fabric-loom（legacy fabric-loom 强制要求 mappings，26.x 无 mappings 会报错）
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+	id 'maven-publish'
+}
+
+// 版本号带 MC 后缀，便于区分多版本构建产物（如 1.0.0+26.2）
+version = project.mod_version + "+" + project.minecraft_version
+group = project.maven_group
+
+repositories {
+	// Add repositories to retrieve artifacts from in here.
+	maven { url 'https://api.modrinth.com/maven' }
+}
+
+dependencies {
+	// To change the versions see the gradle.properties file
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	// 26.1+：Minecraft 未混淆（官方名即源码名），无需 mappings——显式配置反而报错（试点实证）
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+	// Fabric API（26.2 对应版本）
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	// fabric-carpet 26.2（版本号与 MC 同步）
+	implementation "maven.modrinth:TQTTVgYE:${project.carpet_version}"
+
+	// MixinExtras（@WrapOperation 等兼容友好注入器）：编译期 API + 随包分发，
+	// 保证旧 loader（<0.15 未内置 MixinExtras）环境同样可用
+	include(implementation(annotationProcessor("io.github.llamalad7:mixinextras-fabric:${project.mixinextras_version}")))
+}
+
+processResources {
+	def version = project.version
+	inputs.property "version", version
+
+	filesMatching("fabric.mod.json") {
+		expand "version": version
+	}
+}
+
+// 编译目标 Java 版本（26.x = 25）
+def targetJavaVersion = project.targetJavaVersion.toInteger()
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = targetJavaVersion
+}
+
+
+
+java {
+	withSourcesJar()
+
+	sourceCompatibility = JavaVersion.toVersion(targetJavaVersion)
+	targetCompatibility = JavaVersion.toVersion(targetJavaVersion)
+}
+
+jar {
+	def projectName = project.name
+	inputs.property "projectName", projectName
+
+	from("LICENSE") {
+		rename { "${it}_$projectName"}
+	}
+}
+
+// configure the maven publication
+publishing {
+	publications {
+		create("mavenJava", MavenPublication) {
+			from components.java
+		}
+	}
+
+	repositories {
+		// Add repositories to publish to here.
+	}
+}

@@ -1,0 +1,24 @@
+{
+	"required": true,
+	"package": "com.flt.carpetaddition.mixin",
+	"compatibilityLevel": "JAVA_17",
+	"refmap": "carpet-flt-addition.refmap.json",
+	"mixins": [
+		"entity.CreeperEntityMixin",
+		"item.ItemGlassToolMixin",
+		"entity.LivingEntityMixin",
+		"entity.WitherSkeletonDropMixin",
+		"entity.PlayerInfinityBowMixin",
+		"spawn.PatrolSpawnerMixin",
+		"spawn.SpawnHelperInfoAccessor",
+		"villager.SpectralArrowRestockMixin",
+		"villager.VillagerEmeraldBlockMixin",
+		"network.XaeroMapPlayerManagerMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}

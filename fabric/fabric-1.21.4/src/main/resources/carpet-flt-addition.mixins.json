@@ -1,0 +1,28 @@
+{
+	"required": true,
+	"package": "com.flt.carpetaddition.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"refmap": "carpet-flt-addition.refmap.json",
+	"mixins": [
+		"entity.CreeperEntityMixin",
+		"villager.EnchantBookFactoryWindMixin",
+		"item.ItemGlassToolMixin",
+		"entity.LivingEntityMixin",
+		"entity.WitherSkeletonDropMixin",
+		"entity.PlayerInfinityBowMixin",
+		"vehicle.MinecartLeashInteractMixin",
+		"vehicle.MinecartLeashMixin",
+		"spawn.PatrolSpawnerMixin",
+		"spawn.SpawnHelperInfoAccessor",
+		"villager.SpectralArrowRestockMixin",
+		"villager.VillagerEmeraldBlockMixin",
+		"network.XaeroMapPlayerManagerMixin",
+		"menu.GrindstoneEnchantmentDuplicationMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}

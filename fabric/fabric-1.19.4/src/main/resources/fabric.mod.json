@@ -1,0 +1,32 @@
+{
+	"schemaVersion": 1,
+	"id": "carpet-flt-addition",
+	"version": "${version}",
+	"name": "Carpet FLT Addition",
+	"description": "A fabric-carpet extension mod for the FLT server.",
+	"authors": [
+		"LingFeng23314"
+	],
+	"contact": {
+		"homepage": "https://github.com/LingFeng23314/Carpet-FLT-Addition",
+		"sources": "https://github.com/LingFeng23314/Carpet-FLT-Addition"
+	},
+	"license": "LGPL-3.0",
+	"icon": "assets/carpet-flt-addition/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.flt.carpetaddition.FLTAdditionMod"
+		]
+	},
+	"mixins": [
+		"carpet-flt-addition.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.14.21",
+		"minecraft": "1.19.4",
+		"java": ">=17",
+		"fabric-api": "*",
+		"carpet": "*"
+	}
+}

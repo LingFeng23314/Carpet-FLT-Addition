@@ -1,0 +1,58 @@
+# gradle
+.gradle/
+**/.gradle/
+build/
+**/build/
+out/
+classes/
+
+# eclipse
+
+*.launch
+
+# idea
+
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# vscode
+
+.settings/
+.vscode/
+bin/
+.classpath
+.project
+
+# macos
+
+*.DS_Store
+
+# fabric
+
+run/
+**/run/
+
+# java
+
+hs_err_*.log
+replay_*.log
+*.hprof
+*.jfr
+
+# 构建脚本重命名产生的备份目录（.gradle/build 改名而来，勿提交）
+
+*.sav*/
+
+# Gradle 临时 home 目录（构建误落到源码树内时产生，勿提交）
+
+fabric/*/c/
+
+# 上游参考源码（本地只读镜像，不入库）
+
+refs/
+
+# 本地调研与归档文档（不入库）
+
+docs/

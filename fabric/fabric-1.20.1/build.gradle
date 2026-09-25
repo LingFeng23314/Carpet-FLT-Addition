@@ -1,0 +1,93 @@
+plugins {
+	// 注意：1.21.11（混淆版本）用老插件 fabric-loom + 正式版 1.17.11
+	// （fabric-loom-remap 1.17-SNAPSHOT 在 1.21.11 上不生成 refmap，导致 Mixin 注入失败）
+	id 'fabric-loom' version "${loom_version}"
+	id 'maven-publish'
+}
+
+// 版本号带 MC 后缀，便于区分多版本构建产物（如 1.0.0+1.21.11）
+version = project.mod_version + "+" + project.minecraft_version
+group = project.maven_group
+
+repositories {
+	// Add repositories to retrieve artifacts from in here.
+	maven { url 'https://api.modrinth.com/maven' }
+}
+
+dependencies {
+	// To change the versions see the gradle.properties file
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+	// Fabric API. This is technically optional, but you probably want it anyway.
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	// fabric-carpet 依赖（1.4.194 对应 MC 1.21.11）
+	modImplementation "maven.modrinth:TQTTVgYE:${project.carpet_version}"
+
+	// MixinExtras（@WrapOperation 等兼容友好注入器）：编译期 API + 随包分发
+	include(implementation(annotationProcessor("io.github.llamalad7:mixinextras-fabric:${project.mixinextras_version}")))
+}
+
+processResources {
+	def version = project.version
+	inputs.property "version", version
+
+	filesMatching("fabric.mod.json") {
+		expand "version": version
+	}
+}
+
+// 编译目标 Java 版本（gradle.properties 里按版本条件定义：>=1.20.5 用 21，老版本 17）
+def targetJavaVersion = project.targetJavaVersion.toInteger()
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = targetJavaVersion
+}
+
+loom {
+	mixin {
+		// 混淆版本必须启用 legacy Mixin AP：
+		// 编译期把 @Mixin/@Inject 里的 Yarn 名重映射为 intermediary 名，
+		// 运行时无需 refmap 即可匹配（参考 TIS 的 common.gradle）
+		useLegacyMixinAp = true
+		// 同时也生成 refmap，双保险
+		defaultRefmapName = "carpet-flt-addition.refmap.json"
+	}
+}
+
+java {
+	// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
+	// if it is present.
+	// If you remove this line, sources will not be generated.
+	withSourcesJar()
+
+	sourceCompatibility = JavaVersion.toVersion(targetJavaVersion)
+	targetCompatibility = JavaVersion.toVersion(targetJavaVersion)
+}
+
+jar {
+	def projectName = project.name
+	inputs.property "projectName", projectName
+
+	from("LICENSE") {
+		rename { "${it}_$projectName"}
+	}
+}
+
+// configure the maven publication
+publishing {
+	publications {
+		create("mavenJava", MavenPublication) {
+			from components.java
+		}
+	}
+
+	// See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
+	repositories {
+		// Add repositories to publish to here.
+		// Notice: This block does NOT have the same function as the block in the top level.
+		// The repositories here will be used for publishing your artifact, not for
+		// retrieving dependencies.
+	}
+}
