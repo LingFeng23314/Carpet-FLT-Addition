@@ -1,11 +1,11 @@
 {
   "carpet.category.FLT": "FLT",
-  "carpet.rule.NoCreeperGrief.name": "苦力怕防炸",
-  "carpet.rule.NoCreeperGrief.desc": "苦力怕爆炸不再破坏你的地形",
+  "carpet.rule.noCreeperGrief.name": "苦力怕防炸",
+  "carpet.rule.noCreeperGrief.desc": "苦力怕爆炸不再破坏你的地形",
   "carpet.rule.missingToolsPlus.name": "缺失工具修复增强",
   "carpet.rule.missingToolsPlus.desc": "支持更多工具作为玻璃的有效采集工具",
-  "carpet.rule.LavaStrider.name": "岩浆探索者",
-  "carpet.rule.LavaStrider.desc": "深海探索者也能在岩浆里使用（游得可快了：D）",
+  "carpet.rule.lavaStrider.name": "岩浆探索者",
+  "carpet.rule.lavaStrider.desc": "深海探索者也能在岩浆里使用（游得可快了：D）",
   "carpet.rule.xaeroMapName.name": "Xaero地图世界名",
   "carpet.rule.xaeroMapName.desc": "需要客户端安装 Xaero 世界地图。解决群组服（BungeeCord / Velocity）地图数据混乱问题",
   "carpet.rule.villagerTradeSwiftSneak.name": "村民交易迅捷潜行书",
@@ -29,11 +29,11 @@
   "carpet.rule.grindstoneEnchantmentDuplication.name": "砂轮附魔复制",
   "carpet.rule.grindstoneEnchantmentDuplication.desc": "把下槽物品的附魔复制到上槽物品上（复刻 24w10a~24w11a 快照特性，不需要经验值）",
   "carpet.rule.endGatewayExitSearchDistance.name": "末地折跃门寻出口距离",
-  "carpet.rule.endGatewayExitSearchDistance.desc": "末地折跃门首次穿越时，沿径向向外找配对回程门的距离。0=原版（1024 格）；>0 = 自定义（如 768）。改后可用 /flt endgate reset 让旧门重新成对",
+  "carpet.rule.endGatewayExitSearchDistance.desc": "末地折跃门首次穿越时，沿径向向外找配对回程门的距离。0=原版（1024 格）；>0 = 自定义（如 768）。改后可用 /Gatewayfixer 让旧门重新成对",
   "carpet.rule.autoRestock.name": "假人自动备货",
-  "carpet.rule.autoRestock.desc": "按投影材料需求（客户端上报或 /flt demand 设置），自动派假人从库存源箱子取货备齐。需先用 /flt stock add 登记箱子",
+  "carpet.rule.autoRestock.desc": "按投影材料需求（客户端上报或 /Itemfetcher demand 设置），自动派假人从库存源箱子取货备齐。需先用 /Itemfetcher stock add 登记箱子",
   "carpet.rule.restockIntervalTicks.name": "自动备货间隔",
   "carpet.rule.restockIntervalTicks.desc": "每隔多少游戏刻扫一次缺口并派单，默认 20（1 秒）",
-  "carpet.rule.fltFakePlayerPrefix.name": "备货假人前缀",
-  "carpet.rule.fltFakePlayerPrefix.desc": "每个玩家的专属备货假人名字 = 此前缀 + 玩家名（如 FLTSteve）。前缀+玩家名会被截到 16 字符（原版玩家名上限），超长会导致服务端编码 player_info_update 失败并把客户端踢下线"
+  "carpet.rule.itemFetcherPrefix.name": "备货假人前缀",
+  "carpet.rule.itemFetcherPrefix.desc": "备货假人名字 = 此前缀 + 固定后缀 fetch（默认值 flt_ → 假人名 flt_fetch）。全服共用一个、不含玩家名。名字会被截到 16 字符（原版玩家名上限），超长会导致服务端编码 player_info_update 失败并把客户端踢下线"
 }

@@ -4,14 +4,14 @@ import carpet.api.settings.Rule;
 import static carpet.api.settings.RuleCategory.FEATURE;
 import static carpet.api.settings.RuleCategory.SURVIVAL;
 
-/** FLT 规则声明（@Rule 字段）。字段名=命令名（首字母大写是用户指定，不要改）；类型=规则类型；初值=默认值。 */
+/** FLT 规则声明（@Rule 字段）。字段名=规则名（统一 camelCase，对齐 Carpet/ORG/LMS 惯例）；类型=规则类型；初值=默认值。 */
 public class FLTSettings {
     /** 本模组的自定义分类（/carpet list FLT 可过滤本模组规则） */
     public static final String FLT = "FLT";
 
     /** 苦力怕爆炸不破坏方块（保留伤害，默认 false） */
     @Rule(categories = {FLT, FEATURE})
-    public static boolean NoCreeperGrief = false;
+    public static boolean noCreeperGrief = false;
 
     /** 凋零骷髅不掉石剑（骨头/煤炭/头颅不受影响）。spawnAtLocation 单/双参分界 1.21.2 */
     @Rule(categories = {FLT, FEATURE})
@@ -23,7 +23,7 @@ public class FLTSettings {
 
     /** 岩浆探索者：深海探索者在岩浆中也生效（复用水的移动逻辑） */
     @Rule(categories = {FLT, FEATURE})
-    public static boolean LavaStrider = false;
+    public static boolean lavaStrider = false;
 
     /** 缺失工具修复增强：指定工具类型挖玻璃获得正确速度（对齐 fabric-carpet 官方 missingTools） */
     @Rule(categories = {FLT, SURVIVAL}, options = {"#none", "pickaxe", "axe", "shovel", "hoe"})
@@ -78,7 +78,7 @@ public class FLTSettings {
     public static int restockIntervalTicks = 20;
 
     /**
-     * 备货假人名字前缀：备货/取货假人的名字 = 此前缀 + "carry"（如 Fltcarry），总长 ≤ 16。
+     * 备货假人名字前缀：备货/取货假人的名字 = 此前缀 + "fetch"（默认值 flt_ → 假人名 flt_fetch），总长 ≤ 16。
      *
      * <p>⚠️ 只影响 FLT 的备货假人，不影响你们改 Carpet 全局 {@code fakePlayerNamePrefix} 的其它假人。
      * 这是 FLT 自己注册的 carpet 规则（@Rule），可在游戏里 <carpet> 命令 / CarpCat 里改。
@@ -86,5 +86,5 @@ public class FLTSettings {
      * （原版玩家名上限，否则假人进服广播 player_info_update 会 "String too big" 踢人）。
      */
     @Rule(categories = {FLT}, strict = false)
-    public static String fltFakePlayerPrefix = "FLT";
+    public static String itemFetcherPrefix = "flt_";
 }

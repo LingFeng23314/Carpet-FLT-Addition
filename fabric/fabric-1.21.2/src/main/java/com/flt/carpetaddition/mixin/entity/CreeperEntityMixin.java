@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.ModifyArg;
 // END IF
 
 /**
- * 苦力怕爆炸不破坏方块（NoCreeperGrief）。
+ * 苦力怕爆炸不破坏方块（noCreeperGrief）。
  * @ModifyArg 把 explode 内 ServerWorld.createExplosion 的"破坏方式"参数替换为 NONE
  * （不破坏方块，保留伤害）。
  * [VERSION] createExplosion 签名三档：
@@ -32,7 +32,7 @@ public abstract class CreeperEntityMixin {
             index = 5
     )
     private World.ExplosionSourceType flt_noCreeperGrief(World.ExplosionSourceType sourceType) {
-        return FLTSettings.NoCreeperGrief ? World.ExplosionSourceType.NONE : sourceType;
+        return FLTSettings.noCreeperGrief ? World.ExplosionSourceType.NONE : sourceType;
     }
 // ELSE IF >= fabric-1.19.4
 //    @ModifyArg(
@@ -44,7 +44,7 @@ public abstract class CreeperEntityMixin {
 //            index = 8
 //    )
 //    private World.ExplosionSourceType flt_noCreeperGrief(World.ExplosionSourceType sourceType) {
-//        return FLTSettings.NoCreeperGrief ? World.ExplosionSourceType.NONE : sourceType;
+//        return FLTSettings.noCreeperGrief ? World.ExplosionSourceType.NONE : sourceType;
 //    }
 // ELSE
 //    @ModifyArg(
@@ -56,7 +56,7 @@ public abstract class CreeperEntityMixin {
 //            index = 8
 //    )
 //    private Explosion.DestructionType flt_noCreeperGrief(Explosion.DestructionType destructionType) {
-//        return FLTSettings.NoCreeperGrief ? Explosion.DestructionType.NONE : destructionType;
+//        return FLTSettings.noCreeperGrief ? Explosion.DestructionType.NONE : destructionType;
 //    }
 // END IF
 }

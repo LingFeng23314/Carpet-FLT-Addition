@@ -16,7 +16,7 @@ import static carpet.settings.RuleCategory.SURVIVAL;
 
 /**
  * FLT 规则声明（@Rule 字段）。
- * 字段名=命令名（首字母大写是用户指定，不要改）；类型=规则类型；初值=默认值。
+ * 字段名=规则名（统一 camelCase，对齐 Carpet/ORG/LMS 惯例）；类型=规则类型；初值=默认值。
  * [VERSION] @Rule 注解成员分界 fabric-1.19.4：1.19.4+ 用 categories()，1.18.2- 用 category() + 必需 desc()。
  */
 public class FLTSettings {
@@ -31,7 +31,7 @@ public class FLTSettings {
 // ELSE
 //#    （理论不可达）
 // END IF
-    public static boolean NoCreeperGrief = false;
+    public static boolean noCreeperGrief = false;
 
     /** 凋零骷髅不掉石剑（骨头/煤炭/头颅照常掉落） */
 // IF >= fabric-1.19.4
@@ -68,7 +68,7 @@ desc = "Set tool type for proper glass mining speed"
 // ELSE
 //#    （理论不可达）
 // END IF
-    public static boolean LavaStrider = false;
+    public static boolean lavaStrider = false;
 
     /** Xaero 地图世界名：发 worldId = CRC32(xaeroMapName) 给 Xaero 客户端，实现多世界地图分离 */
 // IF >= fabric-1.19.4

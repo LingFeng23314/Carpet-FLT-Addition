@@ -1,11 +1,11 @@
 {
   "carpet.category.FLT": "FLT",
-  "carpet.rule.NoCreeperGrief.name": "No Creeper Grief",
-  "carpet.rule.NoCreeperGrief.desc": "Creeper explosions no longer destroy your terrain.",
+  "carpet.rule.noCreeperGrief.name": "No Creeper Grief",
+  "carpet.rule.noCreeperGrief.desc": "Creeper explosions no longer destroy your terrain.",
   "carpet.rule.missingToolsPlus.name": "Missing Tools Plus",
   "carpet.rule.missingToolsPlus.desc": "More tools can serve as effective tools for mining glass.",
-  "carpet.rule.LavaStrider.name": "Lava Strider",
-  "carpet.rule.LavaStrider.desc": "Depth Strider also works in lava (swim fast! :D)",
+  "carpet.rule.lavaStrider.name": "Lava Strider",
+  "carpet.rule.lavaStrider.desc": "Depth Strider also works in lava (swim fast! :D)",
   "carpet.rule.xaeroMapName.name": "Xaero Map World Name",
   "carpet.rule.xaeroMapName.desc": "Requires the client to run Xaero's World Map. Solves map data mixing on proxy networks (BungeeCord / Velocity).",
   "carpet.rule.villagerTradeSwiftSneak.name": "Villager Trade Swift Sneak",
@@ -29,11 +29,11 @@
   "carpet.rule.grindstoneEnchantmentDuplication.name": "Grindstone Enchantment Duplication",
   "carpet.rule.grindstoneEnchantmentDuplication.desc": "Copies the enchantments of the item in the bottom slot onto the top item (recreates the 24w10a-24w11a snapshot feature, no experience cost).",
   "carpet.rule.endGatewayExitSearchDistance.name": "End Gateway Exit Search Distance",
-  "carpet.rule.endGatewayExitSearchDistance.desc": "How far an End gateway looks radially outward for its paired return portal on first teleport. 0 = vanilla (1024 blocks); >0 = custom (e.g. 768). After changing, use /flt endgate reset to re-pair existing portals.",
+  "carpet.rule.endGatewayExitSearchDistance.desc": "How far an End gateway looks radially outward for its paired return portal on first teleport. 0 = vanilla (1024 blocks); >0 = custom (e.g. 768). After changing, use /Gatewayfixer to re-pair existing portals.",
   "carpet.rule.autoRestock.name": "Fake Player Auto Restock",
-  "carpet.rule.autoRestock.desc": "Based on schematic material demands (reported by the client or set via /flt demand), fake players automatically withdraw materials from registered stock chests. Register chests with /flt stock add first.",
+  "carpet.rule.autoRestock.desc": "Based on schematic material demands (reported by the client or set via /Itemfetcher demand), fake players automatically withdraw materials from registered stock chests. Register chests with /Itemfetcher stock add first.",
   "carpet.rule.restockIntervalTicks.name": "Auto Restock Interval",
   "carpet.rule.restockIntervalTicks.desc": "How many game ticks between each gap scan and dispatch. Default 20 (1 second).",
-  "carpet.rule.fltFakePlayerPrefix.name": "Restock Fake Player Prefix",
-  "carpet.rule.fltFakePlayerPrefix.desc": "Each player's dedicated restock fake player is named prefix + player name (e.g. FLTSteve). Prefix + name is clamped to 16 chars (the vanilla player name limit); a longer name makes the server fail to encode player_info_update and kicks the client."
+  "carpet.rule.itemFetcherPrefix.name": "Restock Fake Player Prefix",
+  "carpet.rule.itemFetcherPrefix.desc": "The restock fake player's name is the prefix + fixed suffix 'fetch' (the default 'flt_' gives 'flt_fetch'). One shared bot per server; no player name is included. Clamped to 16 chars (the vanilla player name limit); a longer name makes the server fail to encode player_info_update and kicks the client."
 }

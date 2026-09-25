@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 import org.spongepowered.asm.mixin.injection.At;
 
 /**
- * 岩浆探索者（LavaStrider）：深海探索者在岩浆中同样生效。
+ * 岩浆探索者（lavaStrider）：深海探索者在岩浆中同样生效。
  * @WrapOperation 包住 travelInFluid 对 travelInLava 的调用：带附魔的玩家改走 travelInWater。
  * 必须带附魔门槛（无附魔按水推+岩浆阻力反而更快）；用 @WrapOperation 不用 @Redirect（更兼容）。
  */
@@ -31,7 +31,7 @@ public abstract class LivingEntityMixin {
     )
     private void flt$lavaStrider(LivingEntity entity, Vec3 movementInput, double x, boolean z, double w,
                                  Operation<Void> original) {
-        if (FLTSettings.LavaStrider && entity instanceof Player && hasDepthStrider(entity)) {
+        if (FLTSettings.lavaStrider && entity instanceof Player && hasDepthStrider(entity)) {
             flt$invokeTravelInWater(movementInput, x, z, w);
         } else {
             original.call(entity, movementInput, x, z, w);

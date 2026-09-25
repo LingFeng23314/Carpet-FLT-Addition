@@ -21,7 +21,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 // END IF
 
 /**
- * 岩浆探索者（LavaStrider）：深海探索者在岩浆中也生效。
+ * 岩浆探索者（lavaStrider）：深海探索者在岩浆中也生效。
  * 必须带附魔门槛（无附魔按水推+岩浆阻力反而更快）。
  * 用 @WrapOperation 不用 @Redirect（更兼容）。
  * [VERSION] 旅行机制四档分界：
@@ -48,7 +48,7 @@ public abstract class LivingEntityMixin {
 //    )
 //    private void flt$lavaStrider(LivingEntity entity, Vec3d movementInput, double x, boolean z, double w,
 //                                 Operation<Void> original) {
-//        if (FLTSettings.LavaStrider && entity instanceof PlayerEntity && hasDepthStrider(entity)) {
+//        if (FLTSettings.lavaStrider && entity instanceof PlayerEntity && hasDepthStrider(entity)) {
 //            flt$invokeTravelInWater(movementInput, x, z, w);
 //        } else {
 //            original.call(entity, movementInput, x, z, w);
@@ -62,7 +62,7 @@ public abstract class LivingEntityMixin {
 //    @Inject(method = "travelInFluid", at = @At("HEAD"), cancellable = true)
 //    private void flt$lavaStrider1214(Vec3d movementInput, CallbackInfo ci) {
 //        LivingEntity self = (LivingEntity) (Object) this;
-//        if (!FLTSettings.LavaStrider || !(self instanceof PlayerEntity) || !hasDepthStrider(self) || !self.isInLava()) {
+//        if (!FLTSettings.lavaStrider || !(self instanceof PlayerEntity) || !hasDepthStrider(self) || !self.isInLava()) {
 //            return;
 //        }
 //        double gravity = flt$gravity(this);
@@ -108,7 +108,7 @@ public abstract class LivingEntityMixin {
 //    @Inject(method = "travel", at = @At("HEAD"), cancellable = true)
 //    private void flt$lavaStriderOld21(Vec3d movementInput, CallbackInfo ci) {
 //        LivingEntity self = (LivingEntity) (Object) this;
-//        if (!FLTSettings.LavaStrider || !(self instanceof PlayerEntity) || !hasDepthStrider(self) || !self.isInLava()) {
+//        if (!FLTSettings.lavaStrider || !(self instanceof PlayerEntity) || !hasDepthStrider(self) || !self.isInLava()) {
 //            return;
 //        }
 //        double gravity = flt$gravity(this);
@@ -154,7 +154,7 @@ public abstract class LivingEntityMixin {
 //    @Inject(method = "travel", at = @At("HEAD"), cancellable = true)
 //    private void flt$lavaStriderOld120(Vec3d movementInput, CallbackInfo ci) {
 //        LivingEntity self = (LivingEntity) (Object) this;
-//        if (!FLTSettings.LavaStrider || !(self instanceof PlayerEntity) || !hasDepthStrider(self) || !self.isInLava()) {
+//        if (!FLTSettings.lavaStrider || !(self instanceof PlayerEntity) || !hasDepthStrider(self) || !self.isInLava()) {
 //            return;
 //        }
 //        double gravity = flt$gravity(this);

@@ -8,7 +8,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
 
 /**
- * 苦力怕爆炸不破坏方块（NoCreeperGrief）。
+ * 苦力怕爆炸不破坏方块（noCreeperGrief）。
  * @ModifyArg 把 explodeCreeper 内 ServerLevel.explode 的 Level$ExplosionInteraction
  * 参数（index=5）换成 NONE（不破坏方块，保留伤害）。
  */
@@ -24,6 +24,6 @@ public abstract class CreeperEntityMixin {
             index = 5
     )
     private Level.ExplosionInteraction flt_noCreeperGrief(Level.ExplosionInteraction interaction) {
-        return FLTSettings.NoCreeperGrief ? Level.ExplosionInteraction.NONE : interaction;
+        return FLTSettings.noCreeperGrief ? Level.ExplosionInteraction.NONE : interaction;
     }
 }

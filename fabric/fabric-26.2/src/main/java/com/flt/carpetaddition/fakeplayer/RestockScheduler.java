@@ -38,7 +38,7 @@ import java.util.function.Consumer;
  * 备货假人调度器（组合拳二期核心）。
  *
  * <p>两条派单入口，共用<b>同一个</b>全服备货假人（命名走 {@link FakePlayerNaming#botNameFor(String)}，
- * 名字 = FLT 自己的 carpet 规则 {@code fltFakePlayerPrefix} 规则值 + "carry"，不含玩家名，总长 ≤ 16）：
+ * 名字 = FLT 自己的 carpet 规则 {@code itemFetcherPrefix} 规则值 + "fetch"，不含玩家名，总长 ≤ 16）：
  * <ul>
  *   <li><b>定时批量</b> {@link #tick}：按 {@link DemandRegistry} 的需求算缺口，每个周期只派一件</li>
  *   <li><b>即时单件</b> {@link #fetchSingle}：客户端投影中键取货，直接指定物品与数量</li>
