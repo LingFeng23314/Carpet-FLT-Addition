@@ -1,0 +1,64 @@
+# git-cliff 配置：生成中英双语的 Release Notes（IGNY 风格）
+# ============================================================
+# 使用：CI 的 release job 里 orhun/git-cliff-action 读取本配置，生成 CHANGELOG.md 作为 Release 正文
+# 文档：https://git-cliff.org/docs/configuration
+#
+# 【双语原理】（2026-09-05 落地，git-cliff 2.14.1 实测验证）
+#  commit message 写成「type: 中文描述 | English description」（竖线分隔，| 两侧各一空格）。
+#  git-cliff 解析 conventional commit 后，commit.message = 剥离 type 后的 "中文 | English"。
+#  模板用 split(pat=" | ") 取 first（中文）/ last（英文），分两次循环渲染成上下两段：
+#     中文段（组标题映射为中文） → --- 分隔线 → 英文段（组标题原样英文）
+#  未带 " | " 的 commit（历史遗留英文单语）split 后 first/last 相同，两端都会显示，不丢信息。
+#
+# 【commit message 规范】从 v1.2.0 起：
+#   feat: 新增无限弓无箭规则 | add infinityBowNoArrows rule
+#   fix: 修复巡逻队规则不生效 | fix patrol rule not taking effect
+#   （保持 conventional 前缀，中文主体在前、| 分隔、英文主体在后）
+#
+# 【分组说明】git-cliff 2.x 内置分组优先（commit_parsers 的 group 字段实测失效，
+#  v1.1.0 changelog 组名即内置英文 "🚀 Features"）→ 中文段用 contains 判断内置组名
+#  映射为中文标题；commit_parsers 仅作兜底。模板不可用 set/in 语法（git-cliff Tera 不支持，
+#  实测空输出），只能用双层 for 循环 + contains if 分支。
+
+[changelog]
+header = "# 更新日志 / Changelog\n"
+# 模板：中文段（组标题→中文）+ 分隔线 + 英文段（组标题原样）
+body = """
+## 🀄 中文
+
+{% for group, commits in commits | group_by(attribute="group") %}
+### {% if group is containing('Feature') %}✨ 新功能{% elif group is containing('Bug Fix') %}🐛 修复{% elif group is containing('Documentation') %}📚 文档{% elif group is containing('CI') %}🔧 CI{% elif group is containing('Perf') %}⚡ 性能{% elif group is containing('Refactor') %}♻️ 重构{% else %}其他{% endif %}
+
+{% for commit in commits %}
+- {{ commit.message | split(pat=" | ") | first }}
+{% endfor %}
+{% endfor %}
+
+---
+
+## 🌐 English
+
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group }}
+
+{% for commit in commits %}
+- {{ commit.message | split(pat=" | ") | last }}
+{% endfor %}
+{% endfor %}
+"""
+# 分组规则：git-cliff 2.x 内置分组优先；此处兜底未识别前缀（group 字段实测不覆盖内置名）
+commit_parsers = [
+  { message = "^feat", group = "🚀 Features" },
+  { message = "^fix", group = "🐛 Bug Fixes" },
+  { message = "^docs", group = "📚 Documentation" },
+  { message = "^ci", group = "🔧 CI" },
+  { message = "^perf", group = "⚡ Performance" },
+  { message = "^refactor", group = "♻️ Refactor" },
+  { message = ".*", group = "其他" },
+]
+# 不过滤任何 commit（保留全部）
+filter_commits = false
+
+[git]
+conventional_commits = true    # 解析 conventional commit 格式
+filter_unconventional = false  # 非规范格式的 commit 也保留（进"其他"组）

@@ -1,0 +1,10 @@
+// ONEWAY
+// RENAME tradeable_wind.json
+// IF >= fabric-1.21
+//{
+//  "values": [
+//    "#minecraft:tradeable",
+//    "minecraft:wind_burst"
+//  ]
+//}
+// END IF

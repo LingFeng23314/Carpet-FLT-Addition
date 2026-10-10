@@ -1,0 +1,147 @@
+# GitHub Actions 工作流：多版本自动构建 + 自动发布 Release
+#
+# 触发方式：
+#   1. 推送形如 v1.0.0 的标签（git tag v1.0.0 && git push --tags）→ 自动构建全部版本并创建 Release
+#   2. 仓库 Actions 页面手动"Run workflow"（不建 Release，只构建）
+#
+# 原理（ModMultiVersion 多版本结构）：
+#   - matrix.sh 扫描 fabric/ 下的版本目录生成构建矩阵（fabric-1.21.11 等）
+#   - jdk_rules.sh 按版本选 JDK（26.x 用 25，>=1.20.5 用 21，<1.20.5 用 17）
+#   - init.sh 跑 ModMultiVersion 工具，从 origin 模板重新生成各版本目录（26.x 跳过）
+#   - gradle build 在版本目录内执行，产物 build/libs/*.jar
+#   - build job 上传 artifact；release job（独立、只跑一次）下载全部 artifact 后创建 Release
+#     【教训】Release 步骤若放在矩阵 job 内，16 个并行 job 会同时写同一个 Release 互相覆盖，
+#     导致 Release 只剩 1 个 jar → 必须用独立 release job 统一收集
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"          # 只在推送 v 开头标签时触发 Release
+  workflow_dispatch:  # 允许在 Actions 页面手动触发（仅构建）
+
+permissions:
+  contents: write    # 需要写权限才能创建 Release
+
+jobs:
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      # 1) 拉取代码
+      - uses: actions/checkout@v5
+      # 2) 扫描 fabric/ 下版本目录生成矩阵 JSON
+      - name: Generate Matrix
+        id: set-matrix
+        run: chmod 777 matrix.sh && ./matrix.sh -path "fabric"
+
+  build:
+    runs-on: ubuntu-latest
+    needs: generate-matrix
+    strategy:
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v5
+
+      # 3) 按版本选择 JDK（jdk_rules.sh 把结果写进 $GITHUB_ENV）
+      #    参数：loader, version, JDK25规则, JDK21规则, JDK17规则, JDK8规则
+      #    【关键】gradle 运行 JVM 版本 ≠ 编译目标版本：
+      #    - fabric-loom 1.17.11（1.x）/ 1.17.19（26.x）都要求 JVM >= 21（CI 实测 JDK 17 报
+      #      "Dependency requires at least JVM runtime version 21"）
+      #    - 编译目标（javac release）由各目录 gradle.properties 的 targetJavaVersion 单独控制
+      #    → 统一：26.x（>=fabric-26.1）→ JDK 25；所有 1.x（>=fabric-1.16.5）→ JDK 21
+      - name: Get JDK Version
+        run: chmod 777 jdk_rules.sh && ./jdk_rules.sh "${{ matrix.config.mc-loader }}" "${{ matrix.config.mc-version }}" ">=fabric-26.1" ">=fabric-1.16.5" "" ""
+
+      - name: Chose JDK
+        uses: actions/setup-java@v5
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+
+      # 4) 从 origin 模板重新生成版本目录（保证与 origin 一致）
+      #    【26.x 例外】26.x 是独立 gradle 项目（非模板生成），跳过 init.sh 防止被覆盖
+      - name: Init Files
+        if: matrix.config.independent != 'true'
+        run: chmod 777 init.sh && ./init.sh
+
+      # 4b) 修正工具条件处理缺陷（ModMultiVersionTool bug：IF 匹配时后续分支被误解注释、
+      #     匹配分支的注释文字被去 // 变活代码——不修则编译必挂）
+      - name: Fix Generated Sources
+        if: matrix.config.independent != 'true'
+        run: python3 scripts/fix_conditions.py
+
+      # 4c) 验证生成物与 origin 模板按版本号展开的结果完全一致（防坏生成物进 Release）
+      - name: Verify Generated Sources
+        if: matrix.config.independent != 'true'
+        run: python3 scripts/verify_v5.py
+
+      # 5) Gradle 缓存（加速；cache-read-only 只恢复不写入，
+      #    避免 16 个并行 job 同时写缓存触发缓存服务 400）
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
+
+      # 6) 构建（Linux 上 gradlew 无 .bat；先给执行权限）
+      #    【26.x 例外】若 gradle.properties 指定了 org.gradle.java.home（该路径在 CI 上不存在）
+      #    → 用命令行 -D 覆盖为 $JAVA_HOME
+      #    （Gradle 命令行属性优先级最高，覆盖 gradle.properties）
+      #    【-x sourcesJar】不生成 sources.jar（只发布主 jar，源头不产，Release 自然不会带上）。
+      #    注意两档差异（CI 实测）：
+      #    - 1.x（混淆 yarn 版）：remapSourcesJar 依赖 sourcesJar 输出，只跳 sourcesJar 会报
+      #      "Querying mapped value before task ':sourcesJar' has completed" → 两个一起跳
+      #    - 26.x（未混淆 mojmap 版）：loom 1.17.19 不生成 remapSourcesJar 任务，
+      #      带 -x remapSourcesJar 会报 "Task 'remapSourcesJar' not found" → 只跳 sourcesJar
+      - name: Build
+        run: |
+          cd ${{ matrix.config.mc-loader }}/${{ matrix.config.mc-loader }}-${{ matrix.config.mc-version }}
+          chmod 777 gradlew
+          if [ "${{ matrix.config.independent }}" = "true" ]; then
+            ./gradlew build -x sourcesJar -Dorg.gradle.java.home="$JAVA_HOME"
+          else
+            ./gradlew build -x sourcesJar -x remapSourcesJar
+          fi
+          cd ../..
+
+      # 7) 上传构建产物（release job 会统一收集）
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: mod-${{ matrix.config.mc-version }}
+          path: ${{ matrix.config.mc-loader }}/${{ matrix.config.mc-loader }}-${{ matrix.config.mc-version }}/build/libs/*.jar
+          if-no-files-found: error
+
+  # 8) 独立 Release job：等所有构建完成 → 下载全部 artifact → 创建 Release
+  #    【关键】必须独立 job（只执行一次），不能在矩阵 job 里做 Release（并发会互相覆盖）
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      # 拉取完整 git 历史（git-cliff 需要按 tag 计算版本区间；默认浅克隆只有 1 条提交）
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # 用 git-cliff 自动生成更新日志（cliff.toml 配置分组：feat/fix/docs/ci...）
+      # 参考主流做法（git-cliff 是开源社区标准 changelog 工具），commit 用 conventional 风格即可
+      - uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --latest -o CHANGELOG.md
+
+      # 合并下载所有版本的 jar 到 release-jars/ 目录（构建时已 -x sourcesJar，只有主 jar）
+      - uses: actions/download-artifact@v5
+        with:
+          path: release-jars
+          merge-multiple: true
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-jars/*.jar
+          # Release 正文 = git-cliff 自动生成的 CHANGELOG.md
+          body_path: CHANGELOG.md
+
