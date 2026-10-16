@@ -3,6 +3,7 @@ package com.flt.carpetaddition.fakeplayer;
 import carpet.patches.EntityPlayerMPFake;
 import com.flt.carpetaddition.FLTAdditionMod;
 import com.flt.carpetaddition.storage.StackCounter;
+import com.flt.carpetaddition.storage.StockPersistence;
 import com.flt.carpetaddition.storage.StockSource;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -91,6 +92,13 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
     private AbstractContainerMenu menu;
     /** 当前菜单对应的容器坐标 */
     private BlockPos openPos;
+    /**
+     * 当前定位容器所在维度。与 {@link #openPos} 一起判定"是否已定位到目标箱"。
+     *
+     * <p>⚠️ 为什么不能只比坐标：跨维度取货时不同维度可能有相同坐标，只比 {@code pos} 会把
+     * "另一个维度同坐标的箱子"误判成"已经定位好了"，于是跳过传送、直接开箱 → 失败。
+     */
+    private ServerLevel openLevel;
     /** 当前容器的槽数（防越界） */
     private int containerSize;
 
@@ -125,12 +133,18 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
     /**
      * 待取槽记录（主线程生成后不可变）。
      *
+     * <p>⚠️ <b>必须带 {@code level}</b>（2026-10-12 跨维度修复）：登记容器可分布在多个维度，
+     * 而假人建档后只固定站在一个维度。若无维度信息，取货时会用「假人自身维度」去开「另一个维度的箱子」
+     * → 坐标对不上、开箱必失败。带上 level 后，假人会传送到目标容器<b>真正所在的那个维度</b>再开箱
+     * （{@code Entity.teleportTo(ServerLevel,…)} 原生支持跨维度，javap 实证走 {@code TeleportTransition}）。
+     *
+     * @param level      容器所在维度（跨维度取货用）
      * @param pos        容器坐标
      * @param slotIndex  容器内的槽索引
      * @param count      该槽的可取数量（散装=物品数；盒装=盒数）
      * @param isBoxSlot  是否是整盒取的潜影盒槽
      */
-    public record TargetSlot(BlockPos pos, int slotIndex, int count, boolean isBoxSlot) {
+    public record TargetSlot(ServerLevel level, BlockPos pos, int slotIndex, int count, boolean isBoxSlot) {
     }
 
     /**
@@ -153,6 +167,8 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
         java.util.Set<BlockPos> seenCanonical = new java.util.HashSet<>();
         // 诊断计数：因"盒内装着物品"被跳过的潜影盒（只可能是目标物品=潜影盒的情形，见 candidateOf）
         int filledBoxSkips = 0;
+        // 诊断计数：因所在区块未加载被跳过的登记坐标（跨维度常见；负反馈不静默，最后打日志）
+        int skippedUnloaded = 0;
 
         for (java.util.Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>,
                 Set<BlockPos>> entry : StockSource.all().entrySet()) {
@@ -161,6 +177,12 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
                 continue;
             }
             for (BlockPos pos : entry.getValue()) {
+                // 只从"已加载区块"的容器取货（2026-10-12）：未加载的区块读不到、也不该为取货去
+                // 强制加载它 —— 口径与 StockScanner.scanAll 保持一致（显示什么就能取到什么）。
+                if (!com.flt.carpetaddition.storage.StockScanner.isChunkLoaded(level, pos)) {
+                    skippedUnloaded++;
+                    continue;
+                }
                 // 双箱：归一到规范坐标、只取完整合并容器统计一次（两个 half 不再分别扫，避免或缺一半）
                 BlockPos canonical = com.flt.carpetaddition.storage.ContainerGroup.canonical(level, pos);
                 if (!seenCanonical.add(canonical)) {
@@ -176,7 +198,7 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
                     if (stack.isEmpty()) {
                         continue;
                     }
-                    Candidate c = candidateOf(stack, canonical, i, itemId, targetItem, boxMode);
+                    Candidate c = candidateOf(level, stack, canonical, i, itemId, targetItem, boxMode);
                     if (c != null) {
                         candidates.add(c);
                     } else if (stack.is(targetItem)
@@ -188,15 +210,25 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
             }
         }
 
-        // 排序：盒装槽优先（仅 boxMode）；再按 Y 从高到低（减少垂直移动）；再按数量从多到少
+        // 排序：先按维度聚集（减少跨维度来回传送）→ 盒装槽优先 → **盒装源内「盒内数量越少越先取」**
+        // （即优先清掉没装满的盒子、把满盒留到最后，2026-10-16 用户需求）→ 再按 Y 从高到低
+        // （减少垂直移动）→ 再按数量从多到少。
+        // 注：散装槽（isBoxSlot=false）在该键上恒为 0，不参与"非满盒优先"，仍按后面的 Y / 数量排。
         candidates.sort(Comparator
-                .comparingInt((Candidate c) -> c.isBoxSlot ? 0 : 1)
-                .thenComparingInt((Candidate c) -> -c.pos.getY())
-                .thenComparingInt((Candidate c) -> -c.count));
+                .comparing((Candidate c) -> c.level.dimension().identifier().toString())
+                .thenComparingInt(c -> c.isBoxSlot ? 0 : 1)
+                .thenComparingInt(c -> c.isBoxSlot ? c.count : 0)   // 盒装源：非满盒（少的）先取
+                .thenComparingInt(c -> -c.pos.getY())
+                .thenComparingInt(c -> -c.count));
 
         if (filledBoxSkips > 0) {
             FLTAdditionMod.LOGGER.info("[FLT][取货] {} 有 {} 个潜影盒因【盒内装着物品】被跳过"
                     + "（潜影盒当建材时只取空盒，否则会把盒里的东西一起搬走）", itemId, filledBoxSkips);
+        }
+        if (skippedUnloaded > 0) {
+            // 负反馈不静默：跨维度取不到货时，日志要说清是"区块没加载"而不是"仓库没货"
+            FLTAdditionMod.LOGGER.info("[FLT][取货] {} 有 {} 个登记容器因【所在区块未加载】被跳过"
+                    + "（跨维度取货需先将那片区块加载/靠近；不强制加载以免卡顿）", itemId, skippedUnloaded);
         }
 
         // 贪心凑够 needCount
@@ -210,14 +242,14 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
             if (needCount > 0) {
                 take = Math.min(c.count, needCount - collected);
             }
-            result.add(new TargetSlot(c.pos, c.slotIndex, take, c.isBoxSlot));
+            result.add(new TargetSlot(c.level, c.pos, c.slotIndex, take, c.isBoxSlot));
             collected += take;
         }
         return result;
     }
 
-    /** 单个槽是否可选，可选则返回候选记录 */
-    private static Candidate candidateOf(ItemStack stack, BlockPos pos, int slotIndex,
+    /** 单个槽是否可选，可选则返回候选记录（{@code level} = 该容器所在维度，跨维度取货用） */
+    private static Candidate candidateOf(ServerLevel level, ItemStack stack, BlockPos pos, int slotIndex,
                                          net.minecraft.resources.Identifier itemId,
                                          Item targetItem, boolean boxMode) {
         if (boxMode) {
@@ -225,7 +257,7 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
                 return null;
             }
             // 盒数 = 槽内潜影盒堆叠数（通常是 1，某些数据包/模组可能可堆叠）
-            return new Candidate(pos, slotIndex, stack.getCount(), true);
+            return new Candidate(level, pos, slotIndex, stack.getCount(), true);
         }
 
         // 非盒装：
@@ -236,7 +268,7 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
         //     实测（20:29）：投影要砂岩、也要 1 个潜影盒，假人从 {91,53,-58} 槽 28 取走 1 个
         //     "潜影盒"，而那只盒里装着纯沙子 → 玩家收到"一盒沙子"。
         if (ShulkerBoxUtil.isDirectSourceFor(stack, targetItem)) {
-            return new Candidate(pos, slotIndex, stack.getCount(), false);
+            return new Candidate(level, pos, slotIndex, stack.getCount(), false);
         }
         //  2) 槽内是潜影盒且盒内含有目标物品（纯盒或杂盒）→ 标记为盒装源，
         //     取货时把盒内目标物品拆出来散装进假人背包（不强求盒内全是一种）。
@@ -245,19 +277,21 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
             int inside = com.flt.carpetaddition.storage.StackCounter
                     .countTargetInsideBox(stack, itemId);
             if (inside > 0) {
-                return new Candidate(pos, slotIndex, inside, true);
+                return new Candidate(level, pos, slotIndex, inside, true);
             }
         }
         return null;
     }
 
     private static final class Candidate {
+        final ServerLevel level;
         final BlockPos pos;
         final int slotIndex;
         final int count;
         final boolean isBoxSlot;
 
-        Candidate(BlockPos pos, int slotIndex, int count, boolean isBoxSlot) {
+        Candidate(ServerLevel level, BlockPos pos, int slotIndex, int count, boolean isBoxSlot) {
+            this.level = level;
             this.pos = pos;
             this.slotIndex = slotIndex;
             this.count = count;
@@ -291,7 +325,8 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
 
         // 阶段调度（三步各自独占 tick，为什么必须分开见对应方法注释）：
         //   ① 目标箱 ≠ 当前定位箱 → 只传送  ② 已定位但没开箱 → 开箱  ③ 开好箱 → 取当前槽
-        if (!target.pos.equals(openPos)) {
+        // 判定同时比「维度 + 坐标」：跨维度时不同维度可能有同坐标，只比坐标会漏判（见 openLevel 注释）。
+        if (target.level() != openLevel || !target.pos.equals(openPos)) {
             return teleportToNextBox(target);
         }
         if (menu == null) {
@@ -314,11 +349,15 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
      */
     private boolean teleportToNextBox(TargetSlot target) {
         ServerPlayer bot = getFakePlayer();
-        ServerLevel level = level();
+        // 跨维度修复（2026-10-12）：传送到「目标容器真正所在的维度」，而不是假人自身维度。
+        // 同维度时 target.level() == 假人维度 → 行为与改前完全一致（零回归）。
+        ServerLevel level = target.level();
 
         closeMenu();
         openPos = target.pos();
-        FLTAdditionMod.LOGGER.info("[FLT][取货] {} 换箱传送至 {}", itemIdText, target.pos);
+        openLevel = target.level();
+        FLTAdditionMod.LOGGER.info("[FLT][取货] {} 换箱传送至 {} @{}", itemIdText, target.pos,
+                target.level().dimension().identifier());
 
         SafeSpotFinder.teleportToSafeSpot(bot, level,
                 target.pos().getX() + 0.5D,
@@ -337,7 +376,8 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
      */
     private boolean openBox(TargetSlot target) {
         ServerPlayer bot = getFakePlayer();
-        ServerLevel level = level();
+        // 跨维度修复（2026-10-12）：用目标容器所在维度开箱（与 teleportToNextBox 的传送维度一致）。
+        ServerLevel level = target.level();
         BlockPos boxPos = target.pos();
 
         // ⚠️ 用方块状态的标准菜单入口（而非裸 blockEntity）：双箱会被合并成 54 格菜单，
@@ -348,6 +388,7 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
         if (provider == null) {
             message = "目标方块不是可打开容器（已跳过）：" + boxPos;
             FLTAdditionMod.LOGGER.info("[FLT][取货] {} 位置 {} 不可开箱，跳过", itemIdText, boxPos);
+            pruneIfNotContainer(level, boxPos);   // 取货扑空 → 顺手清掉失效登记（见方法注释）
             currentIndex++;
             return true;
         }
@@ -364,6 +405,36 @@ public class MultiContainerWithdrawAction extends AbstractFakePlayerAction {
         menu = bot.containerMenu;
         FLTAdditionMod.LOGGER.info("[FLT][取货] {} 已打开 {} 的容器（{} 槽）", itemIdText, boxPos, containerSize);
         return true;   // 下一 tick 再取槽
+    }
+
+    /**
+     * 取货扑空时的"登记自愈"：该坐标若<b>方块实体已不是容器</b>，就把它从库存源移除并落盘。
+     *
+     * <p>为什么在这里做：活塞推走 / 爆炸 / {@code /setblock} 等非玩家破坏<b>不触发</b>
+     * {@code PlayerBlockBreakEvents}，只能靠扫描自检。除了低频 tick 自检外，这里再加一道
+     * "假人都跑到跟前了才发现不是容器"的就地清理 —— 让失效登记在下一次取货时就地消失。
+     *
+     * <p>⚠️ 只在 {@code !isContainerBlock} 时清（<b>不能</b>用"打不开"当判据）：箱子上方被遮挡时
+     * {@code menuProviderFor} 同样返回 null，但那个箱子是真实存在的，清掉就是误删
+     * （2026-10-13 误删 249 个的教训）。
+     */
+    private void pruneIfNotContainer(ServerLevel level, BlockPos pos) {
+        try {
+            if (com.flt.carpetaddition.storage.ContainerGroup.isContainerBlock(level, pos)) {
+                return;   // 方块还是容器（只是打不开，如上方被遮挡）→ 保留登记
+            }
+            if (StockSource.isPinned(level.dimension(), pos)) {
+                return;   // 钉住的登记（潜影盒 / 预登记展示位）→ 保留：盒子回来仍可用（2026-10-16 用户要求）
+            }
+            if (StockSource.remove(level.dimension(), pos)) {
+                StockPersistence.save(server());
+                FLTAdditionMod.LOGGER.info("[FLT][取货] {} 目标 {} 已不是容器，清除失效登记（剩余 {} 个）",
+                        itemIdText, pos, StockSource.size());
+            }
+        } catch (Throwable t) {
+            // 清理失败不该影响取货主流程（但负反馈不静默）
+            FLTAdditionMod.LOGGER.warn("[FLT][取货] 清除失效登记失败 {}：{}", pos, t.toString());
+        }
     }
 
     /**

@@ -52,6 +52,8 @@ public class FLTAdditionMod implements ModInitializer {
         //    客户端 ClientPlayNetworking.canSend() 恒为 false，表现为
         //    「发送失败：未连接到支持该通道的服务器」。
         registerFltProtocol();
+        // 容器被玩家挖掉 → 自动从库存源清除登记（零 mixin，走 fabric PlayerBlockBreakEvents.AFTER）
+        com.flt.carpetaddition.storage.StockBreakListener.register();
         FLTAdditionServer.init();
     }
 

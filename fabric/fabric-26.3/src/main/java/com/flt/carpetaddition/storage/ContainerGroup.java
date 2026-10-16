@@ -7,6 +7,7 @@ import net.minecraft.world.MenuProvider;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BarrelBlock;
 import net.minecraft.world.level.block.ChestBlock;
+import net.minecraft.world.level.block.ShulkerBoxBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.ChestType;
 
@@ -202,9 +203,20 @@ public final class ContainerGroup {
         }
 
         if (state.getBlock() instanceof ChestBlock) {
+            ChestBlock chest = (ChestBlock) state.getBlock();
             try {
-                return ChestBlock.getContainer(
-                        (ChestBlock) state.getBlock(), state, level, pos, false);
+                Container merged = ChestBlock.getContainer(chest, state, level, pos, false);
+                if (merged != null) {
+                    return merged;
+                }
+                // ⚠️ [2026-10-13 修复] getContainer(...,false) 在「箱子正上方有实体方块」时返回 null
+                //    （combine 内部用 isBlockedChestByBlock 判为遮挡 → 返回空结果，javap 实证）。
+                //    那只是"打不开"、不代表箱子不存在 → 用 ignoreBlocked=true 再取一次完整合并容器。
+                //    统计/显示用（取货仍走 MenuProvider：遮挡箱子本就打不开，会被正常跳过）。
+                Container unblocked = ChestBlock.getContainer(chest, state, level, pos, true);
+                if (unblocked != null) {
+                    return unblocked;
+                }
             } catch (Exception ignored) {
                 // 合并失败（无右半等）→ 退到读 BlockEntity
             }
@@ -213,6 +225,31 @@ public final class ContainerGroup {
             return container;
         }
         return null;
+    }
+
+    /**
+     * pos 当前是否仍是「容器方块」—— 只看方块实体是否存在容器，与"能否合并 / 是否被遮挡"无关。
+     *
+     * <p>用途：<b>失效登记自检</b>。不能用 {@link #fullContainerFor} 判"箱子还在不在" ——
+     * 它读的是"能不能打开"：箱子上方被遮挡时同样返回 null，会被误判为"箱子没了"而清掉登记。
+     * （2026-10-13 实证：末地仓库箱子上方有楼板 → 249 个有效登记被误清。）
+     */
+    public static boolean isContainerBlock(ServerLevel level, BlockPos pos) {
+        return level.getBlockEntity(pos) instanceof Container;
+    }
+
+    /**
+     * 该方块状态是否属于「可搬运容器」（潜影盒）—— 其登记<b>不随方块消失而自动清除</b>。
+     *
+     * <p>为什么潜影盒要特殊（2026-10-16 用户要求）：潜影盒可以被挖起、掉落成物品、再放回原处，
+     * 与"固定放置的箱子"不同 —— 玩家不希望搬动一次就把库存源登记清掉。取货时会现场校验那格
+     * 有没有容器，没有就跳过（登记照旧保留，放回去即可继续用）。
+     *
+     * <p>⚠️ 只有<b>破坏瞬间</b>能拿到方块状态（事件回调的 {@code state} 参数）；方块消失后无从判断，
+     * 所以登记时就把身份记进 {@link StockSource#setPinned}，后续自检据此豁免。
+     */
+    public static boolean isPortableContainer(BlockState state) {
+        return state.getBlock() instanceof ShulkerBoxBlock;
     }
 
     /**

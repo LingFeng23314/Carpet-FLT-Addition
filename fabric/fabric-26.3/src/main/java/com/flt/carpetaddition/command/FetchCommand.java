@@ -91,7 +91,7 @@ public final class FetchCommand {
                                 .withStyle(ChatFormatting.YELLOW)), false);
                 return;
             }
-            FakePlayerActionScheduler.start(bot, new ContainerWithdrawAction(bot, containerPos, item, count,
+            FakePlayerActionScheduler.start(bot, new ContainerWithdrawAction(bot, level, containerPos, item, count,
                     message -> source.sendSuccess(() -> Component.literal("[FLT] 假人 ")
                             .withStyle(ChatFormatting.GREEN)
                             .append(Component.literal(botName).withStyle(ChatFormatting.AQUA))

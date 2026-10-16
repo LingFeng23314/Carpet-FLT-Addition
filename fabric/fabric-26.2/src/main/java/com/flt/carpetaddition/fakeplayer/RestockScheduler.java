@@ -772,7 +772,7 @@ public final class RestockScheduler {
         if (targets.size() == 1) {
             MultiContainerWithdrawAction.TargetSlot t = targets.get(0);
             int requestAmount = boxMode ? want : Math.min(want, t.count());
-            action = new ContainerWithdrawAction(bot, t.pos(), item, requestAmount, boxMode, reporter);
+            action = new ContainerWithdrawAction(bot, t.level(), t.pos(), item, requestAmount, boxMode, reporter);
         } else {
             action = new MultiContainerWithdrawAction(bot, targets, item, itemId.toString(), want, boxMode, reporter);
         }
@@ -1580,7 +1580,17 @@ public final class RestockScheduler {
         pushStockTotal(server, playerId);
     }
 
-    /** 库存源里第一个可用容器（跨维度），用于给备货假人选址 */
+    /**
+     * 库存源里第一个<b>已加载</b>的可用容器（跨维度），用于给备货假人选址。
+     *
+     * <p>⚠️ 为什么跳过未加载的容器（2026-10-12）：取货侧已统一为"只从已加载区块取货"
+     * （见 {@code StockScanner.isChunkLoaded} 与 {@code MultiContainerWithdrawAction.collectTargets}）。
+     * 若这里仍按 HashMap 迭代序随便取第一个坐标，很可能把假人建档到一个<b>尚未加载</b>的容器处 ——
+     * 建档后取货阶段又因该区块未加载而取不到货，表现为"假人建出来了但永远备不到货"。
+     * 选址与取货口径必须一致：都只认已加载的容器。
+     *
+     * <p>全部登记都没加载时返回 null（调用方按"没有可用库存源"处理），不强行选址。
+     */
     private static StockSpot firstStockSpot(MinecraftServer server) {
         for (Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level>,
                 java.util.Set<BlockPos>> entry : StockSource.all().entrySet()) {
@@ -1591,8 +1601,12 @@ public final class RestockScheduler {
             if (level == null) {
                 continue;
             }
-            BlockPos pos = entry.getValue().iterator().next();
-            return new StockSpot(level, new Vec3(pos.getX() + 0.5D, pos.getY() + 1.0D, pos.getZ() + 0.5D));
+            for (BlockPos pos : entry.getValue()) {
+                if (!StockScanner.isChunkLoaded(level, pos)) {
+                    continue;   // 未加载 → 不为建档选址（与取货口径一致，不强制加载）
+                }
+                return new StockSpot(level, new Vec3(pos.getX() + 0.5D, pos.getY() + 1.0D, pos.getZ() + 0.5D));
+            }
         }
         return null;
     }

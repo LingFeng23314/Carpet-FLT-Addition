@@ -38,6 +38,8 @@ import java.util.function.Consumer;
  * <p>取货终点 = 假人身上（中转站），与"假人身上的材料计入投影材料列表"的设计一致。
  */
 public class ContainerWithdrawAction extends AbstractFakePlayerAction {
+    /** 目标容器所在维度（跨维度修复 2026-10-12：假人需传送到该维度再开箱，不能默认用自身维度） */
+    private final ServerLevel containerLevel;
     private final BlockPos containerPos;
     private final Item targetItem;
     /** 期望取出的数量；<=0 表示尽量取（取光容器里该物品） */
@@ -54,9 +56,10 @@ public class ContainerWithdrawAction extends AbstractFakePlayerAction {
     private int withdrawn;
     private String message;
 
-    public ContainerWithdrawAction(EntityPlayerMPFake fakePlayer, BlockPos containerPos, Item targetItem,
-                                   int requestAmount, boolean boxMode, Consumer<String> reporter) {
+    public ContainerWithdrawAction(EntityPlayerMPFake fakePlayer, ServerLevel containerLevel, BlockPos containerPos,
+                                   Item targetItem, int requestAmount, boolean boxMode, Consumer<String> reporter) {
         super(fakePlayer);
+        this.containerLevel = containerLevel;
         this.containerPos = containerPos.immutable();
         this.targetItem = targetItem;
         this.requestAmount = requestAmount;
@@ -65,15 +68,16 @@ public class ContainerWithdrawAction extends AbstractFakePlayerAction {
     }
 
     /** 旧签名：非整盒取（兼容批量备货等原有调用，其实例是 boxMode=false） */
-    public ContainerWithdrawAction(EntityPlayerMPFake fakePlayer, BlockPos containerPos, Item targetItem,
-                                   int requestAmount, Consumer<String> reporter) {
-        this(fakePlayer, containerPos, targetItem, requestAmount, false, reporter);
+    public ContainerWithdrawAction(EntityPlayerMPFake fakePlayer, ServerLevel containerLevel, BlockPos containerPos,
+                                   Item targetItem, int requestAmount, Consumer<String> reporter) {
+        this(fakePlayer, containerLevel, containerPos, targetItem, requestAmount, false, reporter);
     }
 
     @Override
     public boolean tick() {
         ServerPlayer bot = getFakePlayer();
-        ServerLevel level = level();
+        // 跨维度修复：使用目标容器所在维度（同维度时 == 假人自身维度，行为与改前一致）
+        ServerLevel level = containerLevel;
 
         switch (phase) {
             case 0 -> {

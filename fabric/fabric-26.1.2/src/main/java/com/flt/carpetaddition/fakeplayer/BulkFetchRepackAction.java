@@ -3,6 +3,7 @@ package com.flt.carpetaddition.fakeplayer;
 import carpet.patches.EntityPlayerMPFake;
 import com.flt.carpetaddition.FLTAdditionMod;
 import com.flt.carpetaddition.storage.ContainerGroup;
+import com.flt.carpetaddition.storage.StockScanner;
 import com.flt.carpetaddition.storage.StockSource;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
@@ -919,6 +920,11 @@ public class BulkFetchRepackAction extends AbstractFakePlayerAction {
             }
             Set<BlockPos> seen = new HashSet<>();
             for (BlockPos pos : entry.getValue()) {
+                // 只从"已加载区块"的容器取空盒（2026-10-12）：与 StockScanner.scanAll 口径一致，
+                // 未加载区块不读也不强制加载。
+                if (!StockScanner.isChunkLoaded(level, pos)) {
+                    continue;
+                }
                 BlockPos canonical = ContainerGroup.canonical(level, pos);
                 if (!seen.add(canonical)) {
                     continue;
@@ -986,6 +992,17 @@ public class BulkFetchRepackAction extends AbstractFakePlayerAction {
      *
      * @return 恒 true（下一 tick 开箱）
      */
+    /**
+     * 空盒来源容器所在维度（{@link #locateEmptyBox} 记录）。
+     *
+     * <p>跨维度修复（2026-10-12）：空盒可能放在另一个维度的箱子里，必须传送到<b>它所在维度</b>
+     * 开箱；用假人自身维度会坐标错位、开箱失败。该维度取不到时回退假人自身维度（保持旧行为，不崩）。
+     */
+    private ServerLevel emptyBoxLevel() {
+        ServerLevel level = emptyBoxSrcLevel != null ? server().getLevel(emptyBoxSrcLevel) : null;
+        return level != null ? level : level();
+    }
+
     private boolean teleportToEmptyBox() {
         ServerPlayer bot = getFakePlayer();
         if (boxSrcMenu != null) {
@@ -996,7 +1013,7 @@ public class BulkFetchRepackAction extends AbstractFakePlayerAction {
             boxSrcMenu = null;
         }
         boxSrcOpenPos = emptyBoxSrcPos.immutable();
-        SafeSpotFinder.teleportToSafeSpot(bot, level(),
+        SafeSpotFinder.teleportToSafeSpot(bot, emptyBoxLevel(),
                 emptyBoxSrcPos.getX() + 0.5D,
                 emptyBoxSrcPos.getY() + 1.0D,   // 站箱顶上方一格；安全落点在其附近找（见 SafeSpotFinder）
                 emptyBoxSrcPos.getZ() + 0.5D,
@@ -1011,10 +1028,12 @@ public class BulkFetchRepackAction extends AbstractFakePlayerAction {
      */
     private boolean openEmptyBoxSource() {
         ServerPlayer bot = getFakePlayer();
+        // 跨维度修复：用空盒来源容器所在维度（与 teleportToEmptyBox 的传送维度一致）
+        ServerLevel level = emptyBoxLevel();
         // ⚠️ 用方块状态的标准菜单入口（双箱合并成54格菜单），与 locateEmptyBox 用
         //    fullContainerFor 扫到的槽号一致；否则双箱后半(槽27~52)的空盒越界取不到。
         net.minecraft.world.MenuProvider provider =
-                ContainerGroup.menuProviderFor(level(), emptyBoxSrcPos);
+                ContainerGroup.menuProviderFor(level, emptyBoxSrcPos);
         if (provider == null) {
             return false;
         }
@@ -1023,7 +1042,7 @@ public class BulkFetchRepackAction extends AbstractFakePlayerAction {
             return false;
         }
         boxSrcMenu = bot.containerMenu;
-        Container full = ContainerGroup.fullContainerFor(level(), emptyBoxSrcPos);
+        Container full = ContainerGroup.fullContainerFor(level, emptyBoxSrcPos);
         boxSrcSize = full != null ? full.getContainerSize() : 0;
         return true;
     }
